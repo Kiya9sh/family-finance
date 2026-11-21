@@ -6,7 +6,7 @@
  * Bump CACHE_VERSION whenever a shipped file changes so phones pick it up.
  */
 
-const CACHE_VERSION = 'family-finance-v3';
+const CACHE_VERSION = 'family-finance-v4';
 
 const ASSETS = [
   './',

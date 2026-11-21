@@ -254,6 +254,16 @@ window.addEventListener('offline', () => {
   toast(L('آفلاین شدید؛ برنامه کار می‌کند.', 'You are offline — the app still works.'), 'warn');
 });
 
+/* A write can fail (iOS aborts IndexedDB work while the app is in the
+ * background). Never let that look like a successful save. */
+window.addEventListener('unhandledrejection', (event) => {
+  if (event && event.preventDefault) event.preventDefault();
+  toast(
+    L('این تغییر ذخیره نشد؛ دوباره امتحان کنید.', 'That change was not saved — please try again.'),
+    'warn',
+  );
+});
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   const stamp = todayISO();
