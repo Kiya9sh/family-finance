@@ -1,0 +1,46 @@
+{
+  "name": "مدیریت مالی خانواده",
+  "short_name": "مالی خانواده",
+  "description": "ثبت درآمد، هزینه، وام و پول قرضی خانواده به تومان با تقویم جلالی — آفلاین روی همین گوشی.",
+  "lang": "fa-IR",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#f7f8fa",
+  "theme_color": "#0f766e",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "ثبت هزینه",
+      "short_name": "هزینه",
+      "url": "./#/records?new=expense"
+    },
+    {
+      "name": "ثبت درآمد",
+      "short_name": "درآمد",
+      "url": "./#/records?new=income"
+    },
+    {
+      "name": "وام‌ها",
+      "short_name": "وام",
+      "url": "./#/plan?tab=loans"
+    }
+  ]
+}

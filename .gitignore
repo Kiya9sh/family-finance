@@ -1,0 +1,4 @@
+# Nothing generated lives in this repository; the app is plain static files.
+.DS_Store
+*.log
+backups/

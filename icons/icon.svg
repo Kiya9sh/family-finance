@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Family Finance">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f8574"/>
+      <stop offset="1" stop-color="#0b4f4a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g fill="none" stroke="#f0fdfa" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="136" y="192" width="240" height="152" rx="30"/>
+    <path d="M136 232h240"/>
+  </g>
+  <circle cx="330" cy="284" r="20" fill="#f0fdfa"/>
+  <path d="M256 104v64" stroke="#8fe3d3" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="256" cy="94" r="16" fill="#8fe3d3"/>
+  <text x="256" y="392" font-family="Helvetica, Arial, sans-serif" font-size="52" font-weight="700"
+        fill="#c9f7ec" text-anchor="middle">تومان</text>
+</svg>

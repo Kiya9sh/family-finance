@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>مدیریت مالی خانواده</title>
+    <meta name="description" content="ثبت درآمد، هزینه، وام و پول قرضی خانواده به تومان با تقویم شمسی — آفلاین روی همین گوشی." />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <link rel="manifest" href="manifest.webmanifest" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="مالی خانواده" />
+    <link rel="apple-touch-icon" href="icons/icon.svg" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <span class="topbar__brand" id="brand">مدیریت مالی خانواده</span>
+      <span class="topbar__today" id="today-chip"></span>
+      <span class="topbar__pill" id="net-pill" hidden>آفلاین</span>
+    </header>
+
+    <main id="view" class="app-main" role="main"></main>
+
+    <nav class="tabbar" id="tabbar" aria-label="بخش‌ها"></nav>
+
+    <div id="sheet-root"></div>
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+    <div id="onboarding-root" hidden></div>
+
+    <noscript>
+      <div class="card" style="margin:16px">
+        برای استفاده از این برنامه باید جاوااسکریپت در Safari روشن باشد.
+      </div>
+    </noscript>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
