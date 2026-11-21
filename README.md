@@ -1,6 +1,6 @@
 # مدیریت مالی خانواده — Family Finance
 
-A mobile-first Progressive Web App for managing personal and family money in **Iranian Toman** with the **Jalali (Hejri Shamsi)** calendar. Built for an iPhone 13 in Safari, added to the Home Screen, working offline with no backend and no account.
+A mobile-first Progressive Web App for managing personal and family money in **Iranian Toman** with the **Jalali (Hejri Shamsi)** calendar. Built as a PWA, added to the Home Screen, working offline with no backend and no account.
 
 Everything is static files: no build step, no server, no dependencies, no API keys.
 
