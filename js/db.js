@@ -7,7 +7,7 @@
  */
 
 export const DB_NAME = 'family-finance';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const STORES = [
   'profiles',
@@ -18,6 +18,7 @@ export const STORES = [
   'loans',
   'lendings',
   'accounts',
+  'tombstones',
   'settings',
 ];
 

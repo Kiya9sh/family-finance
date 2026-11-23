@@ -17,7 +17,10 @@ import {
   openSheet, confirmDialog, toast, field, selectInput, checkboxRow, note, emptyState, icon,
   sectionTitle, segmented,
 } from '../components.js';
-import { onAction, rerender, go } from '../bus.js';
+import { onAction, rerender, go, onForm } from '../bus.js';
+import { buildReportMarkdown } from '../report.js';
+import { buildShareFile, mergeShareFile } from '../sync.js';
+import { getCalendarMode, getCurrencyMode } from '../prefs.js';
 
 const revealedAccounts = new Set();
 
@@ -60,6 +63,8 @@ function moreIndex() {
       ${navRow('#/more/payees', 'store', L('فروشگاه‌ها و سایت‌ها', 'Stores & websites'), L(`${faDigits(data.payees.length)} مورد`, `${data.payees.length} saved`))}
       ${navRow('#/more/accounts', 'card', L('حساب‌ها', 'Accounts'), L('فقط نام و چهار رقم آخر', 'Nickname and last 4 digits only'))}
       ${navRow('#/more/reminder', 'bell', L('یادآور روزانه', 'Daily reminder'), data.settings.reminderEnabled ? `${data.settings.reminderTime}` : L('خاموش', 'Off'))}
+      ${navRow('#/more/display', 'calendar', L('تقویم و واحد پول', 'Calendar & currency'), L('شمسی یا میلادی؛ تومان یا ریال', 'Jalali or Gregorian; Toman or Rial'))}
+      ${navRow('#/more/family', 'users', L('همگام‌سازی خانواده', 'Family sharing'), L('تبادل فایل بین گوشی‌ها', 'Exchange files between phones'))}
       ${navRow('#/more/backup', 'shield', L('پشتیبان‌گیری و بازیابی', 'Backup & restore'), L('فایل روی همین گوشی', 'A file on this phone'))}
       ${navRow('#/more/about', 'info', L('راهنما و محدودیت‌ها', 'Help & limitations'), '')}
     </section>
@@ -85,7 +90,7 @@ function moreIndex() {
       </div>
     </section>
 
-    <p class="version">${esc(L('مدیریت مالی خانواده', 'Family Finance'))} · v1.0</p>
+    <p class="version">${esc(L('مدیریت مالی خانواده', 'Family Finance'))} · v2.0</p>
   </div>`;
 }
 
@@ -527,7 +532,8 @@ function backupPage() {
     )), 'warn')}
 
     <section class="card">
-      ${sectionTitle(L('ساخت پشتیبان', 'Make a backup'))}
+      ${sectionTitle(L('ساخت پشتیبان یا خروجی', 'Make a backup or an export'))}
+      ${formatGuide()}
       <p class="card__sub">${esc(L(
         'همه افراد، تراکنش‌ها، وام‌ها، قرض‌ها و تنظیمات در یک فایل JSON ذخیره می‌شود. این فایل رمزگذاری نشده است؛ آن را در جای امن نگه دارید.',
         'Everyone, transactions, loans, lending and settings go into one JSON file. It is not encrypted — keep it somewhere safe.',
@@ -612,7 +618,7 @@ function aboutPage() {
       ))}</p>
     </section>
 
-    <p class="version">${esc(L('مدیریت مالی خانواده', 'Family Finance'))} · v1.0 · ${esc(faDigits(todayISO()))}</p>
+    <p class="version">${esc(L('مدیریت مالی خانواده', 'Family Finance'))} · v2.0 · ${esc(faDigits(todayISO()))}</p>
   </div>`;
 }
 
@@ -625,6 +631,8 @@ export function renderMore(sub = '') {
   if (sub === 'accounts') return accountsPage();
   if (sub === 'reminder') return reminderPage();
   if (sub === 'backup') return backupPage();
+  if (sub === 'display') return displayPage();
+  if (sub === 'family') return familyPage();
   if (sub === 'about') return aboutPage();
   return moreIndex();
 }
@@ -849,6 +857,14 @@ onAction('restore-file', (input) => {
     let payload;
     try {
       payload = JSON.parse(String(reader.result));
+      if (payload && payload.kind === 'family-share') {
+        toast(L(
+          'این فایل برای تبادل بین گوشی‌هاست؛ از «همگام‌سازی خانواده» وارد کنید.',
+          'This is a family exchange file — import it under Family sharing.',
+        ), 'warn');
+        input.value = '';
+        return;
+      }
     } catch (err) {
       toast(L('این فایل پشتیبان معتبر نیست.', 'That file is not a valid backup.'), 'warn');
       input.value = '';
@@ -900,4 +916,213 @@ onAction('delete-all', async () => {
   ui.records.monthKey = currentMonthKey();
   rerender();
   toast(L('همه داده‌ها پاک شد.', 'All data deleted.'));
+});
+
+
+/* ---------------- version 2: display, family sharing, exports ---------------- */
+
+function displayPage() {
+  return `<div class="view">
+    <div class="view-head">
+      ${backLink()}
+      <h1 class="page-title">${esc(L('تقویم و واحد پول', 'Calendar & currency'))}</h1>
+    </div>
+
+    <section class="card">
+      ${sectionTitle(L('تقویم تاریخ‌ها', 'Calendar for dates'))}
+      ${segmented('calendar', [
+        { value: 'jalali', label: L('شمسی (هجری)', 'Jalali (Hejri)') },
+        { value: 'gregorian', label: L('میلادی', 'Gregorian') },
+      ], getCalendarMode(), 'set-calendar')}
+      <p class="card__sub">${esc(L(
+        'فقط نمایش و ورود تاریخ عوض می‌شود. تاریخ‌ها همیشه به یک شکل ثابت ذخیره می‌شوند. دوره‌های ماهانه (حقوق، اقساط و گزارش ماهانه) همچنان ماه شمسی‌اند.',
+        'Only how dates are shown and typed changes. Dates are always stored in one fixed form. Monthly periods (salaries, instalments and monthly reports) stay on the Jalali month.',
+      ))}</p>
+    </section>
+
+    <section class="card">
+      ${sectionTitle(L('واحد پول', 'Currency'))}
+      ${segmented('currency', [
+        { value: 'toman', label: L('تومان', 'Toman') },
+        { value: 'rial', label: L('ریال', 'Rial') },
+      ], getCurrencyMode(), 'set-currency')}
+      <p class="card__sub">${esc(L(
+        'مبلغ‌ها همیشه به تومان ذخیره می‌شوند. با انتخاب ریال، همان مبلغ‌ها ضربدر ۱۰ نشان داده می‌شوند و آنچه تایپ می‌کنید به تومان برمی‌گردد. هیچ نرخ تبدیل دیگری به کار نمی‌رود.',
+        'Amounts are always stored in Toman. Choosing Rial shows the same amounts multiplied by 10, and what you type is converted back to Toman. No other exchange rate is used.',
+      ))}</p>
+    </section>
+  </div>`;
+}
+
+function familyPage() {
+  const s = data.settings;
+  return `<div class="view">
+    <div class="view-head">
+      ${backLink()}
+      <h1 class="page-title">${esc(L('همگام‌سازی خانواده', 'Family sharing'))}</h1>
+    </div>
+
+    ${note(esc(L(
+      'حساب کاربری و همگام‌سازی زنده بین گوشی‌ها به یک سرور امن نیاز دارد که در این نسخه نیست. اینجا یک فایل تبادل می‌سازید؛ آن را برای همسرتان بفرستید و او وارد کند. دو گوشی ادغام می‌شوند و رکوردهای حذف‌شده دوباره برنمی‌گردند.',
+      'Accounts and live sync between phones need a secure server, which this version does not have. Here you make an exchange file: send it to your spouse and they import it. The two phones merge, and deleted records do not come back.',
+    )), 'warn')}
+
+    <section class="card">
+      ${sectionTitle(L('خانواده و این گوشی', 'Family and this phone'))}
+      <form data-form="family">
+        ${field({
+          label: L('نام خانواده', 'Family name'),
+          input: `<input class="input" name="familyName" maxlength="40" autocomplete="off" value="${esc(s.familyName || '')}">`,
+        })}
+        ${field({
+          label: L('نام این گوشی', 'This phone'),
+          input: `<input class="input" name="deviceName" maxlength="40" autocomplete="off" value="${esc(s.deviceName || '')}"
+            placeholder="${esc(L('مثلاً گوشی مریم', 'e.g. Maryam’s phone'))}">`,
+        })}
+        <button type="submit" class="btn btn--primary btn--small">${esc(L('ذخیره', 'Save'))}</button>
+      </form>
+    </section>
+
+    <section class="card">
+      ${sectionTitle(L('فرستادن به گوشی دیگر', 'Send to another phone'))}
+      <p class="card__sub">${esc(L(
+        'فایل JSON تبادل را با AirDrop، فایل‌ها یا پیام بفرستید. شماره شبا در این فایل نمی‌آید.',
+        'Send the exchange file with AirDrop, Files or a message. IBANs are left out of this file.',
+      ))}</p>
+      <button type="button" class="btn btn--primary btn--small" data-action="share-export">
+        ${icon('share', 16)}<span>${esc(L('ساخت فایل تبادل', 'Make exchange file'))}</span>
+      </button>
+    </section>
+
+    <section class="card">
+      ${sectionTitle(L('دریافت از گوشی دیگر', 'Receive from another phone'))}
+      <p class="card__sub">${esc(L(
+        'فایل تبادل را انتخاب کنید. اطلاعات آن با این گوشی ادغام می‌شود؛ چیزی که این گوشی دارد و فایل ندارد، حذف نمی‌شود.',
+        'Pick the exchange file. Its contents are merged into this phone; anything this phone has that the file lacks is kept.',
+      ))}</p>
+      <input class="file-input" type="file" accept=".json,application/json" data-action="share-import">
+      ${s.lastSyncAt
+        ? `<p class="card__sub">${esc(L('آخرین ادغام: ', 'Last merge: '))}${esc(formatDate(s.lastSyncAt))}</p>`
+        : ''}
+    </section>
+
+    ${note(esc(L(
+      'فایل تبادل اطلاعات هر فرد را دارد؛ فقط برای اعضای خانواده بفرستید.',
+      'The exchange file holds each person’s records; send it only to family members.',
+    )))}
+  </div>`;
+}
+
+function formatGuide() {
+  return `<div class="format-guide">
+    <div class="format-guide__item">
+      <strong>${esc(L('فایل JSON (پشتیبان کامل)', 'JSON file (full backup)'))}</strong>
+      <span>${esc(L(
+        'همه داده‌ها را با ساختار کامل نگه می‌دارد. برای بازیابی باید این فرمت را انتخاب کنید.',
+        'Keeps all data in its full structure. Choose this format when you need to restore.',
+      ))}</span>
+    </div>
+    <div class="format-guide__item">
+      <strong>${esc(L('فایل Markdown (.md)', 'Markdown file (.md)'))}</strong>
+      <span>${esc(L(
+        'گزارش خواندنی برای چاپ یا اشتراک‌گذاری است. با آن داده‌ها بازیابی نمی‌شود.',
+        'A readable report for printing or sharing. It cannot be used to restore data.',
+      ))}</span>
+    </div>
+    <div class="row row--gap row--wrap">
+      <button type="button" class="btn btn--ghost btn--small" data-action="export-markdown">
+        ${icon('doc', 16)}<span>${esc(L('خروجی Markdown (.md)', 'Export Markdown (.md)'))}</span>
+      </button>
+    </div>
+  </div>`;
+}
+
+function earliestMonthKey() {
+  const dates = [
+    ...data.transactions.map((t) => t.date),
+    ...data.loans.map((loan) => loan.startDate),
+    ...data.lendings.map((item) => item.date),
+  ].filter((value) => typeof value === 'string' && value.length >= 10).sort();
+  return dates.length ? monthKeyOfISO(dates[0]) : currentMonthKey();
+}
+
+onAction('set-calendar', async (element) => {
+  await saveSettings({ calendar: element.dataset.value === 'gregorian' ? 'gregorian' : 'jalali' });
+  rerender();
+});
+
+onAction('set-currency', async (element) => {
+  await saveSettings({ currency: element.dataset.value === 'rial' ? 'rial' : 'toman' });
+  rerender();
+});
+
+onForm('family', async (form) => {
+  await saveSettings({
+    familyName: form.elements.familyName.value.trim(),
+    deviceName: form.elements.deviceName.value.trim(),
+  });
+  rerender();
+  toast(L('ذخیره شد', 'Saved'));
+});
+
+onAction('share-export', async () => {
+  const payload = JSON.stringify(buildShareFile(), null, 2);
+  const result = await shareOrDownload({
+    filename: `family-share-${fileStamp()}.json`,
+    text: payload,
+    mime: 'application/json',
+    title: L('تبادل اطلاعات خانواده', 'Family exchange file'),
+  });
+  if (result === 'downloaded') toast(L('فایل در فایل‌ها ذخیره شد.', 'Saved to Files.'));
+});
+
+onAction('share-import', (input) => {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const payload = JSON.parse(String(reader.result));
+      if (!payload || payload.kind !== 'family-share') {
+        toast(L('این فایل، فایل تبادل خانواده نیست.', 'This is not a family exchange file.'), 'warn');
+        return;
+      }
+      const summary = await mergeShareFile(payload);
+      await saveSettings({ lastSyncAt: new Date().toISOString() });
+      rerender();
+      toast(L(
+        `ادغام شد: ${faDigits(summary.added)} افزوده، ${faDigits(summary.updated)} به‌روز، ${faDigits(summary.removed)} حذف`,
+        `Merged: ${summary.added} added, ${summary.updated} updated, ${summary.removed} removed`,
+      ));
+    } catch (err) {
+      toast(L('ادغام انجام نشد؛ فایل را بررسی کنید.', 'Merge failed — check the file.'), 'warn');
+    } finally {
+      input.value = '';
+    }
+  };
+  reader.readAsText(file);
+});
+
+onAction('export-markdown', () => {
+  const latest = currentMonthKey();
+  const first = earliestMonthKey();
+  const markdown = buildReportMarkdown({
+    from: first <= latest ? first : latest,
+    to: latest,
+    personIds: null,
+    includeDemo: false,
+    fields: {
+      summary: true,
+      income: true,
+      expenses: true,
+      expected: true,
+      loans: true,
+      lendings: true,
+      accounts: true,
+      notes: true,
+      sensitive: false,
+    },
+  });
+  downloadText(`family-finance-${fileStamp()}.md`, markdown, 'text/markdown;charset=utf-8');
+  toast(L('فایل Markdown ساخته شد.', 'Markdown file created.'));
 });

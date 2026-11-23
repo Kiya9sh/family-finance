@@ -4,6 +4,7 @@
  */
 
 import { L } from '../i18n.js';
+import { currencyLabel } from '../prefs.js';
 import {
   data, ui, profilesSorted, categoriesOf, categoryName, upsert, removeRecord,
   recordLoanPayment, loanRemaining, loanPaidTotal, loanMonthlyPayment, loanSchedule,
@@ -34,7 +35,6 @@ export function renderPlan() {
     { value: 'expected', label: L('درآمد انتظاری', 'Expected') },
     { value: 'loans', label: L('وام‌ها', 'Loans') },
     { value: 'lending', label: L('قرض', 'Lending') },
-    { value: 'calc', label: L('محاسبه', 'Calculator') },
   ];
   return `<div class="view">
     <div class="view-head">
@@ -44,7 +44,6 @@ export function renderPlan() {
     ${tab === 'expected' ? expectedTab() : ''}
     ${tab === 'loans' ? loansTab() : ''}
     ${tab === 'lending' ? lendingTab() : ''}
-    ${tab === 'calc' ? calcTab() : ''}
   </div>`;
 }
 
@@ -129,9 +128,9 @@ function openExpectedSheet() {
     ${field({ label: L('ماه', 'Month'), input: selectInput({ name: 'month', options: monthOptions, value: ui.monthKey }) })}
     ${field({ label: L('شخص', 'Person'), input: selectInput({ name: 'profileId', options: people.map((p) => ({ value: p.id, label: p.name })) }) })}
     ${field({ label: L('دسته درآمد', 'Income category'), input: selectInput({ name: 'categoryId', options: cats.map((c) => ({ value: c.id, label: c.name })) }) })}
-    ${field({ label: L('مبلغ (تومان)', 'Amount (Toman)'), input: `<div class="amount-wrap">
+    ${field({ label: L('مبلغ', 'Amount'), input: `<div class="amount-wrap">
         <input class="input input--amount" type="text" inputmode="numeric" autocomplete="off" data-amount name="amount" value="">
-        <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span>
+        <span class="amount-wrap__unit">${esc(currencyLabel())}</span>
       </div><span class="amount-preview" data-amount-preview></span>`, required: true })}
     ${field({ label: L('یادداشت', 'Note'), input: `<input class="input" name="note" maxlength="80" autocomplete="off">` })}
     <p class="form-error" data-form-error role="alert"></p>
@@ -246,9 +245,9 @@ function openLoanSheet(existing = null) {
   const body = `<form id="${formId}">
     ${field({ label: L('وام‌دهنده', 'Lender'), input: `<input class="input" name="lender" autocomplete="off" maxlength="60" value="${esc(loan.lender || '')}" placeholder="${esc(L('مثلاً بانک ملت', 'e.g. Bank Mellat'))}">`, required: true })}
     ${field({ label: L('برای', 'For'), input: selectInput({ name: 'profileId', options: people.map((p) => ({ value: p.id, label: p.name })), value: loan.profileId || people[0].id }) })}
-    ${field({ label: L('مبلغ اصل وام (تومان)', 'Principal (Toman)'), input: `<div class="amount-wrap">
+    ${field({ label: L('مبلغ اصل وام', 'Principal'), input: `<div class="amount-wrap">
         <input class="input input--amount" type="text" inputmode="numeric" data-amount name="principal" value="${esc(formatAmountForInput(loan.principal || 0))}">
-        <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`, required: true })}
+        <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`, required: true })}
     ${field({ label: L('تاریخ شروع', 'Start date'), input: datePicker('startDate', loan.startDate || todayISO()) })}
     <div class="form-grid">
       ${field({ label: L('نرخ سود سالانه (٪)', 'Annual rate (%)'), input: `<input class="input" type="number" inputmode="decimal" step="0.1" min="0" max="100" name="annualRatePct" value="${esc(loan.annualRatePct ?? 18)}">` })}
@@ -266,10 +265,10 @@ function openLoanSheet(existing = null) {
       }),
     })}
     ${field({
-      label: L('قسط ماهانه (تومان)', 'Monthly payment (Toman)'),
+      label: L('قسط ماهانه', 'Monthly payment'),
       input: `<div class="amount-wrap">
         <input class="input input--amount" type="text" inputmode="numeric" data-amount name="monthlyPayment" data-auto="${loan.id ? '0' : '1'}" value="${esc(formatAmountForInput(loan.monthlyPayment || 0))}">
-        <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>
+        <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>
         <span class="field__hint" data-payment-hint></span>`,
     })}
     ${field({ label: L('قسط بعدی', 'Next instalment date'), input: datePicker('nextPaymentDate', loan.nextPaymentDate || loan.startDate || todayISO()) })}
@@ -278,7 +277,7 @@ function openLoanSheet(existing = null) {
       input: `<div class="amount-wrap">
         <input class="input input--amount" type="text" inputmode="numeric" data-amount name="remainingBalance"
           value="${typeof loan.remainingBalance === 'number' ? esc(formatAmountForInput(loan.remainingBalance)) : ''}">
-        <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`,
+        <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`,
       hint: esc(L('اگر خالی بماند، از اصل وام منهای پرداخت‌ها حساب می‌شود.', 'Left empty, it is calculated from the principal minus payments.')),
     })}
     ${field({ label: L('یادداشت', 'Note'), input: `<textarea class="input input--area" name="notes" rows="2">${esc(loan.notes || '')}</textarea>` })}
@@ -467,11 +466,11 @@ function openLoanPaymentSheet(loan) {
   const body = `<form id="${formId}">
     <p class="dialog-text">${esc(loan.lender)} — ${esc(L('مانده', 'remaining'))}: ${formatMoney(loanRemaining(loan))}</p>
     ${field({
-      label: L('مبلغ پرداخت (تومان)', 'Payment amount (Toman)'),
+      label: L('مبلغ پرداخت', 'Payment amount'),
       input: `<div class="amount-wrap">
         <input class="input input--amount" type="text" inputmode="numeric" data-amount name="amount"
           value="${esc(formatAmountForInput(loan.monthlyPayment || 0))}">
-        <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`,
+        <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`,
       required: true,
     })}
     ${field({ label: L('تاریخ', 'Date'), input: datePicker('payDate', todayISO()) })}
@@ -590,9 +589,9 @@ function openLendingSheet(existing = null) {
       }),
     })}
     ${field({ label: L('نام طرف مقابل', 'Other person'), input: `<input class="input" name="counterparty" maxlength="60" autocomplete="off" value="${esc(item.counterparty || '')}">`, required: true })}
-    ${field({ label: L('مبلغ (تومان)', 'Amount (Toman)'), input: `<div class="amount-wrap">
+    ${field({ label: L('مبلغ', 'Amount'), input: `<div class="amount-wrap">
         <input class="input input--amount" type="text" inputmode="numeric" data-amount name="amount" value="${esc(formatAmountForInput(item.amount || 0))}">
-        <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`, required: true })}
+        <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`, required: true })}
     ${field({ label: L('تاریخ', 'Date'), input: datePicker('date', item.date || todayISO()) })}
     ${field({ label: L('موعد بازپرداخت', 'Expected repayment'), input: datePicker('dueDate', item.dueDate || addMonthsToISO(todayISO(), 1)) })}
     ${field({ label: L('وضعیت', 'Status'), input: selectInput({
@@ -604,9 +603,9 @@ function openLendingSheet(existing = null) {
         ],
         value: item.status || 'open',
       }) })}
-    ${field({ label: L('مبلغ برگشته (تومان)', 'Repaid so far (Toman)'), input: `<div class="amount-wrap">
+    ${field({ label: L('مبلغ برگشته', 'Repaid so far'), input: `<div class="amount-wrap">
         <input class="input input--amount" type="text" inputmode="numeric" data-amount name="repaidAmount" value="${esc(formatAmountForInput(item.repaidAmount || 0))}">
-        <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>` })}
+        <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>` })}
     ${people.length ? field({ label: L('مرتبط با', 'Related to'), input: selectInput({ name: 'profileId', options: people.map((p) => ({ value: p.id, label: p.name })), value: item.profileId || people[0].id }) }) : ''}
     ${field({ label: L('یادداشت', 'Note'), input: `<textarea class="input input--area" name="notes" rows="2">${esc(item.notes || '')}</textarea>` })}
     <p class="form-error" data-form-error role="alert"></p>
@@ -666,7 +665,10 @@ function openLendingSheet(existing = null) {
   }
 }
 
-/* ---------------- calculator & affordability ---------------- */
+/* ---------------- legacy calculator code ----------------
+ * The live calculator screens now live in views/calc.js. The functions below
+ * are no longer rendered and their form names are renamed so they can never
+ * collide with the new handlers; they are kept only until the next cleanup. */
 
 function calcTab() {
   const calc = ui.calc;
@@ -682,7 +684,7 @@ function calcTab() {
           label: L('مبلغ وام (تومان)', 'Loan amount (Toman)'),
           input: `<div class="amount-wrap">
             <input class="input input--amount" type="text" inputmode="numeric" data-amount name="principal" value="${esc(calc.principal)}">
-            <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`,
+            <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`,
         })}
         <div class="form-grid">
           ${field({ label: L('نرخ سود سالانه (٪)', 'Annual rate (%)'), input: `<input class="input" type="number" inputmode="decimal" step="0.1" min="0" max="100" name="rate" value="${esc(calc.rate)}">` })}
@@ -704,27 +706,27 @@ function calcTab() {
           label: L('درآمد ماهانه خانوار (تومان)', 'Household monthly income (Toman)'),
           input: `<div class="amount-wrap">
             <input class="input input--amount" type="text" inputmode="numeric" data-amount name="income" value="${esc(afford.income || formatAmountForInput(defaults.income))}">
-            <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`,
+            <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`,
           hint: esc(L(`پیش‌فرض: درآمد انتظاری ماه بعد یا میانگین ۳ ماه اخیر (${formatMoney(defaults.income)})`, `Default: next month's expected income or the last 3 months' average (${formatMoney(defaults.income)})`)),
         })}
         ${field({
           label: L('هزینه ماهانه (تومان)', 'Monthly expenses (Toman)'),
           input: `<div class="amount-wrap">
             <input class="input input--amount" type="text" inputmode="numeric" data-amount name="expenses" value="${esc(afford.expenses || formatAmountForInput(defaults.expenses))}">
-            <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`,
+            <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`,
           hint: esc(L('پیش‌فرض: میانگین هزینه سه ماه اخیر.', 'Default: your average expenses over the last three months.')),
         })}
         ${field({
           label: L('جمع اقساط وام‌های موجود (تومان)', 'Existing loan payments (Toman)'),
           input: `<div class="amount-wrap">
             <input class="input input--amount" type="text" inputmode="numeric" data-amount name="existing" value="${esc(afford.existing || formatAmountForInput(defaults.existing))}">
-            <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div><span class="amount-preview" data-amount-preview></span>`,
+            <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div><span class="amount-preview" data-amount-preview></span>`,
           hint: esc(L('پیش‌فرض: جمع اقساط وام‌های ثبت‌شده در همین برنامه.', 'Default: the instalments of the loans saved in this app.')),
         })}
         <div class="form-grid">
           ${field({ label: L('مبلغ وام پیشنهادی (تومان)', 'Proposed loan (Toman)'), input: `<div class="amount-wrap">
             <input class="input input--amount" type="text" inputmode="numeric" data-amount name="principal" value="${esc(afford.principal || calc.principal)}">
-            <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span></div>` })}
+            <span class="amount-wrap__unit">${esc(currencyLabel())}</span></div>` })}
           ${field({ label: L('نرخ سالانه (٪)', 'Annual rate (%)'), input: `<input class="input" type="number" inputmode="decimal" step="0.1" min="0" max="100" name="rate" value="${esc(afford.rate)}">` })}
         </div>
         ${field({ label: L('تعداد اقساط', 'Instalments'), input: `<input class="input" type="number" inputmode="numeric" min="1" max="600" name="months" value="${esc(afford.months)}">` })}
@@ -827,7 +829,7 @@ function averageMonthlyIncome(monthsBack = 3) {
 
 /* ---------------- form handlers ---------------- */
 
-onForm('calc', (form) => {
+onForm('legacy-plan-calc', (form) => {
   const principal = parseAmount(form.elements.principal.value);
   const rate = Number(normalizeDigits(form.elements.rate.value)) || 0;
   const months = Number(normalizeDigits(form.elements.months.value)) || 0;
@@ -853,7 +855,7 @@ onForm('calc', (form) => {
   rerender();
 });
 
-onForm('afford', (form) => {
+onForm('legacy-plan-afford', (form) => {
   const income = parseAmount(form.elements.income.value);
   const expenses = parseAmount(form.elements.expenses.value);
   const existing = parseAmount(form.elements.existing.value);

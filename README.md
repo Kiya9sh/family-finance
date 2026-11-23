@@ -12,7 +12,8 @@ Everything is static files: no build step, no server, no dependencies, no API ke
 | --- | --- |
 | **خانه / Home** | One Jalali month at a glance: recorded income, expected income, expenses, loan instalments paid, estimated money left. Person filter chips, expense-by-category bars, per-person comparison, six-month trend, recent transactions. |
 | **تراکنش‌ها / Records** | Every income and expense, filtered by month (or all months), type, person and category, with search. Grouped by day with daily totals. |
-| **برنامه / Planning** | Four sub-tabs: **expected income** per person/category/month, **loans** (instalments, payment history, remaining balance), **money lent & borrowed**, and the **calculator** (instalment calculator + "can we afford a new loan?" estimate). |
+| **برنامه / Planning** | Four sub-tabs: **expected income** per person/category/month, **loans** (instalments, payment history, remaining balance), **money lent & borrowed**. |
+| **محاسبه / Calculate** | Loan instalment calculator, "can we afford a new loan?" estimate, buy-now-pay-later instalments (4 to 6 months and more), bank deposit interest with four methods, and an income-tax return estimate with editable brackets. |
 | **گزارش / Report** | Choose a Jalali range, choose people and which fields to include, preview the Markdown, then share it with the iOS share sheet or save the `.md` file. |
 | **بیشتر / More** | Family profiles, categories, stores/websites, accounts, daily reminder, language (فارسی / English), sample data, backup & restore, delete everything, help & limitations. |
 
@@ -131,3 +132,19 @@ Conventions worth keeping: amounts are integers in Toman; dates in storage are I
 8. Report → pick a range, toggle people and fields, preview, share to Notes/Files.
 9. Backup → save to Files → delete all data → restore the file → confirm everything returns.
 10. Check Jalali dates across dashboard, records, report, and the reminder's unrecorded days.
+
+
+---
+
+## Version 2
+
+Added on top of version 1:
+
+- **Calendar choice** — More → *Calendar & currency* switches every date between Jalali and Gregorian for display and entry. Dates are still stored one way (ISO Gregorian), and monthly periods (salary, instalments, monthly reports) stay on the Jalali month, because that is the payroll and billing cycle the app is built around.
+- **Currency choice** — Toman (default) or Rial. Amounts are always stored in Toman; Rial is the same money shown ×10, and what you type in Rial is divided back before it is stored. Nothing else is ever converted.
+- **A separate Calculate tab** — loan instalments, the affordability check, buy-now-pay-later instalments, bank deposit interest and the income-tax estimate, out of Planning.
+- **Buy now, pay later** — price, down payment, 2–24 instalments (4 and 6 are one tap away), a percentage or fixed fee, the resulting schedule, the effective annual rate, and a button that saves the plan as an instalment loan in Planning.
+- **Deposit interest** — simple, yearly compounded, monthly compounded, or interest paid out monthly, with optional withholding and an effective annual yield. The method, rate, term and result are all listed.
+- **Income tax estimate** — taxable income after deductions, progressive brackets you can edit (the defaults are placeholders, not the law), tax already paid, and the balance due or refund. The screen says plainly it is an estimate.
+- **Markdown and JSON exports** — the Report tab and More → Backup both write `.md`; the JSON backup is the only format that can be restored, and the backup screen says so next to the buttons.
+- **Family sharing** — a phone-to-phone exchange file that *merges* instead of replacing: people, categories and stores are matched by name, a newer edit wins, and deletions travel as tombstones so a removed record does not come back. No server, no account. Live sync between phones would need its own secure backend and is not part of this version.

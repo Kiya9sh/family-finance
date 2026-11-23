@@ -9,11 +9,13 @@
 import { L, getLang } from './i18n.js';
 import {
   escapeHtml as esc, formatNumber, parseAmount, normalizeDigits, formatAmountForInput,
-  faDigits, formatMoney,
+  faDigits, formatMoney, formatMonthLabel,
 } from './util.js';
 import {
   isoToJalali, jalaliToISO, jalaaliMonthLength, monthName, todayISO, monthKeyParts,
+  partsFromISO, isoFromParts, gregorianMonthLength, gregorianMonthName,
 } from './jalali.js';
+import { currencyLabel, getCalendarMode } from './prefs.js';
 
 /* ---------------- icons ---------------- */
 
@@ -193,8 +195,7 @@ export function statTile({ label, value, hint = '', tone = '', big = false, acti
 }
 
 export function monthNav(monthKey, { prevAction = 'month-prev', nextAction = 'month-next', todayAction = 'month-today' } = {}) {
-  const { jy, jm } = monthKeyParts(monthKey);
-  const label = `${monthName(jm, getLang())} ${faDigits(jy)}`;
+  const label = formatMonthLabel(monthKey);
   return `<div class="month-nav">
     <button type="button" class="icon-btn" data-action="${prevAction}" aria-label="${esc(L('ماه قبل', 'Previous month'))}">${icon('chevronRight', 20)}</button>
     <button type="button" class="month-nav__label" data-action="${todayAction}">${esc(label)}</button>
@@ -264,7 +265,7 @@ export function amountInput({ name, value = 0, placeholder = '' }) {
     <input class="input input--amount" type="text" inputmode="numeric" autocomplete="off"
       data-amount name="${esc(name)}" value="${esc(formatAmountForInput(value))}"
       placeholder="${esc(placeholder || L('مثلاً ۱٬۲۵۰٬۰۰۰', 'e.g. 1,250,000'))}">
-    <span class="amount-wrap__unit">${esc(L('تومان', 'Toman'))}</span>
+    <span class="amount-wrap__unit">${esc(currencyLabel())}</span>
   </div>
   <span class="amount-preview" data-amount-preview></span>`;
 }
@@ -281,30 +282,40 @@ export function closeSheetOf(element) {
 /* ---------------- Jalali date picker ---------------- */
 
 export function datePicker(name, iso = todayISO()) {
-  const j = isoToJalali(iso);
-  const lang = getLang();
-  return `<div class="date-picker" data-date-picker data-name="${esc(name)}" data-value="${esc(iso)}">
-    ${dateSelectsHTML(j, lang)}
+  const mode = getCalendarMode();
+  return `<div class="date-picker" data-date-picker data-calendar="${mode}" data-name="${esc(name)}" data-value="${esc(iso)}">
+    ${dateSelectsHTML(iso, mode)}
     <button type="button" class="date-picker__today" data-date-today>${esc(L('امروز', 'Today'))}</button>
   </div>`;
 }
 
-function dateSelectsHTML(j, lang) {
-  const days = [];
-  for (let d = 1; d <= jalaaliMonthLength(j.jy, j.jm); d += 1) days.push(d);
-  const months = [];
-  for (let m = 1; m <= 12; m += 1) months.push(m);
+function yearRange(center) {
   const years = [];
-  for (let y = j.jy - 6; y <= j.jy + 3; y += 1) years.push(y);
+  for (let y = center - 6; y <= center + 3; y += 1) years.push(y);
+  return years;
+}
 
-  const dayOptions = days
-    .map((d) => `<option value="${d}" ${d === j.jd ? 'selected' : ''}>${faDigits(d)}</option>`)
+function dateSelectsHTML(iso, mode) {
+  const lang = getLang();
+  const gregorian = mode === 'gregorian';
+  const parts = gregorian ? partsFromISO(iso) : isoToJalali(iso);
+  const yearValue = gregorian ? parts.gy : parts.jy;
+  const monthValue = gregorian ? parts.gm : parts.jm;
+  const dayValue = gregorian ? parts.gd : parts.jd;
+  const monthLength = gregorian
+    ? gregorianMonthLength(yearValue, monthValue)
+    : jalaaliMonthLength(yearValue, monthValue);
+
+  const dayOptions = Array.from({ length: monthLength }, (_, i) => i + 1)
+    .map((d) => `<option value="${d}" ${d === dayValue ? 'selected' : ''}>${faDigits(d)}</option>`)
     .join('');
-  const monthOptions = months
-    .map((m) => `<option value="${m}" ${m === j.jm ? 'selected' : ''}>${esc(monthName(m, lang))}</option>`)
+  const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1)
+    .map((m) => `<option value="${m}" ${m === monthValue ? 'selected' : ''}>${esc(
+      gregorian ? gregorianMonthName(m, lang) : monthName(m, lang),
+    )}</option>`)
     .join('');
-  const yearOptions = years
-    .map((y) => `<option value="${y}" ${y === j.jy ? 'selected' : ''}>${faDigits(y)}</option>`)
+  const yearOptions = yearRange(yearValue)
+    .map((y) => `<option value="${y}" ${y === yearValue ? 'selected' : ''}>${faDigits(y)}</option>`)
     .join('');
 
   return `
@@ -319,8 +330,10 @@ export function readDate(container) {
   const day = Number(container.querySelector('[data-part="d"]').value);
   const month = Number(container.querySelector('[data-part="m"]').value);
   const year = Number(container.querySelector('[data-part="y"]').value);
-  const clampedDay = Math.min(day, jalaaliMonthLength(year, month));
-  return jalaliToISO(year, month, clampedDay);
+  if (container.dataset.calendar === 'gregorian') {
+    return isoFromParts(year, month, Math.min(day, gregorianMonthLength(year, month)));
+  }
+  return jalaliToISO(year, month, Math.min(day, jalaaliMonthLength(year, month)));
 }
 
 function refreshDays(container) {
@@ -328,8 +341,9 @@ function refreshDays(container) {
   const month = Number(container.querySelector('[data-part="m"]').value);
   const year = Number(container.querySelector('[data-part="y"]').value);
   const current = Number(daySelect.value);
-  const length = jalaaliMonthLength(year, month);
-  const lang = getLang();
+  const length = container.dataset.calendar === 'gregorian'
+    ? gregorianMonthLength(year, month)
+    : jalaaliMonthLength(year, month);
   daySelect.innerHTML = Array.from({ length }, (_, i) => i + 1)
     .map((d) => `<option value="${d}" ${d === Math.min(current, length) ? 'selected' : ''}>${faDigits(d)}</option>`)
     .join('');
@@ -348,9 +362,7 @@ export function bindInputs(root = document) {
       const preview = wrap ? wrap.querySelector('[data-amount-preview]') : null;
       const value = parseAmount(input.value);
       if (preview) {
-        preview.textContent = Number.isFinite(value) && value > 0
-          ? `${formatNumber(value)} ${L('تومان', 'Toman')}`
-          : '';
+        preview.textContent = Number.isFinite(value) && value > 0 ? formatMoney(value) : '';
       }
     };
     input.addEventListener('input', () => {
@@ -380,11 +392,12 @@ export function bindInputs(root = document) {
     if (todayBtn) {
       todayBtn.addEventListener('click', () => {
         const iso = todayISO();
-        const j = isoToJalali(iso);
-        container.querySelector('[data-part="y"]').value = String(j.jy);
-        container.querySelector('[data-part="m"]').value = String(j.jm);
+        const gregorian = container.dataset.calendar === 'gregorian';
+        const parts = gregorian ? partsFromISO(iso) : isoToJalali(iso);
+        container.querySelector('[data-part="y"]').value = String(gregorian ? parts.gy : parts.jy);
+        container.querySelector('[data-part="m"]').value = String(gregorian ? parts.gm : parts.jm);
         refreshDays(container);
-        container.querySelector('[data-part="d"]').value = String(j.jd);
+        container.querySelector('[data-part="d"]').value = String(gregorian ? parts.gd : parts.jd);
       });
     }
   });

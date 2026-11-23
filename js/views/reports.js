@@ -133,8 +133,8 @@ export function renderReports() {
     </section>
 
     ${note(esc(L(
-      'فایل Markdown در گوشی ساخته می‌شود؛ فقط اگر خودتان اشتراک بگذارید از گوشی خارج می‌شود.',
-      'The Markdown file is made on the phone; it only leaves if you share it yourself.',
+      'فایل Markdown برای خواندن، چاپ و اشتراک‌گذاری است و با آن داده‌ها بازیابی نمی‌شود. برای بازیابی، از پشتیبان JSON در «بیشتر → پشتیبان‌گیری» استفاده کنید.',
+      'The Markdown file is for reading, printing and sharing — it cannot restore data. To restore, use the JSON backup under More → Backup & restore.',
     )))}
   </div>`;
 }

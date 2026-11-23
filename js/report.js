@@ -4,6 +4,7 @@
  */
 
 import { L } from './i18n.js';
+import { currencyLabel } from './prefs.js';
 import {
   data, txInRange, expectedForMonth, profilesSorted, categoryName, profileName,
   loanPaidTotal, loanRemaining,
@@ -51,7 +52,7 @@ export function buildReportMarkdown(options) {
   lines.push(`${L('تاریخ ساخت گزارش', 'Generated')}: ${formatDateTime(new Date())}`);
   lines.push(`${L('افراد', 'People')}: ${people.length ? people.map((person) => person.name).join('، ') : L('هیچ‌کس', 'nobody')}`);
   lines.push('');
-  lines.push(`> ${L('همه مبالغ به تومان است.', 'All amounts are in Toman.')}`);
+  lines.push(`> ${L(`همه مبالغ به ${currencyLabel()} است.`, `All amounts are in ${currencyLabel()}.`)}`);
   lines.push('');
 
   if (fields.summary) {

@@ -8,6 +8,7 @@
 
 import * as db from './db.js';
 import { L, getLang, setLang } from './i18n.js';
+import { setCalendarMode, setCurrencyMode } from './prefs.js';
 import {
   todayISO, currentMonthKey, monthKeyOfISO, monthKeyStartISO, monthKeyEndISO,
   addMonthsToKey, addMonthsToISO, addDaysISO, diffDaysISO, daysInMonthKey,
@@ -23,6 +24,7 @@ export const data = {
   loans: [],
   lendings: [],
   accounts: [],
+  tombstones: [],
   settings: {},
 };
 
@@ -60,13 +62,18 @@ export const ui = {
 export const DEFAULT_SETTINGS = {
   id: 'app',
   lang: 'fa',
+  calendar: 'jalali',
+  currency: 'toman',
   onboarded: false,
   reminderEnabled: false,
   reminderTime: '21:00',
   lastUsed: { profileId: null, incomeCategoryId: null, expenseCategoryId: null, payeeId: null },
   demoSeeded: false,
+  familyName: '',
+  deviceName: '',
+  lastSyncAt: '',
   createdAt: null,
-  schema: 1,
+  schema: 2,
 };
 
 /* ---------------- lifecycle ---------------- */
@@ -85,6 +92,8 @@ export async function initState() {
     lastUsed: { ...DEFAULT_SETTINGS.lastUsed, ...(stored.lastUsed || {}) },
   };
   setLang(data.settings.lang);
+  setCalendarMode(data.settings.calendar);
+  setCurrencyMode(data.settings.currency);
 
   await ensureDefaults();
   const created = await materializeRecurring();
@@ -156,6 +165,9 @@ export function defaultCategories() {
 
 export async function saveSettings(patch) {
   data.settings = { ...data.settings, ...patch };
+  if (patch.calendar) setCalendarMode(patch.calendar);
+  if (patch.currency) setCurrencyMode(patch.currency);
+  if (patch.lang) setLang(patch.lang);
   await db.put('settings', data.settings);
   return data.settings;
 }
@@ -184,9 +196,26 @@ export async function upsertMany(store, records) {
   return prepared;
 }
 
+/* Deletions leave a tombstone so a family share file cannot bring a deleted
+ * record back on the other phone. */
+async function writeTombstone(store, id) {
+  if (!id || store === 'settings' || store === 'tombstones') return;
+  const tombstone = { id: `${store}:${id}`, store, recordId: id, deletedAt: new Date().toISOString() };
+  data.tombstones = data.tombstones || [];
+  const index = data.tombstones.findIndex((item) => item.id === tombstone.id);
+  if (index >= 0) data.tombstones[index] = tombstone;
+  else data.tombstones.push(tombstone);
+  try {
+    await db.put('tombstones', tombstone);
+  } catch (err) {
+    /* a missing tombstone only weakens merging; never block the delete */
+  }
+}
+
 export async function removeRecord(store, id) {
   await db.remove(store, id);
   data[store] = data[store].filter((item) => item.id !== id);
+  await writeTombstone(store, id);
 }
 
 export async function removeRecords(store, ids) {
@@ -194,6 +223,7 @@ export async function removeRecords(store, ids) {
   await db.removeMany(store, ids);
   const set = new Set(ids);
   data[store] = data[store].filter((item) => !set.has(item.id));
+  for (const id of ids) await writeTombstone(store, id);
 }
 
 /* ---------------- lookups ---------------- */
@@ -906,6 +936,8 @@ export async function restoreBackup(payload) {
   });
   data.settings = settingsRecord;
   setLang(data.settings.lang);
+  setCalendarMode(data.settings.calendar);
+  setCurrencyMode(data.settings.currency);
   await materializeRecurring();
   return true;
 }

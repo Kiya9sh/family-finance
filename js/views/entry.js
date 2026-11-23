@@ -85,7 +85,7 @@ export function openTransactionSheet({ type = 'expense', record = null, prefill 
   const body = `
   <form id="${formId}" data-form="tx" novalidate>
     <div class="form-hero">
-      <span class="form-hero__label">${esc(L('مبلغ به تومان', 'Amount in Toman'))}</span>
+      <span class="form-hero__label">${esc(L('مبلغ', 'Amount'))}</span>
       <input class="input input--hero" type="text" inputmode="numeric" autocomplete="off" name="amount"
         data-amount value="${esc(formatAmountForInput(initial.amount))}" placeholder="0">
       <span class="amount-preview" data-amount-preview></span>
@@ -153,7 +153,7 @@ export function openTransactionSheet({ type = 'expense', record = null, prefill 
     title: record
       ? isIncome ? L('ویرایش درآمد', 'Edit income') : L('ویرایش هزینه', 'Edit expense')
       : isIncome ? L('ثبت درآمد', 'Add income') : L('ثبت هزینه', 'Add expense'),
-    subtitle: L('مبلغ‌ها به تومان ذخیره می‌شوند.', 'Amounts are stored in Toman.'),
+    subtitle: L('مبلغ‌ها همیشه به تومان ذخیره می‌شوند.', 'Amounts are always stored in Toman.'),
     body,
     footer,
   });

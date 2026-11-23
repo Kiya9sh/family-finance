@@ -6,7 +6,7 @@
  * Bump CACHE_VERSION whenever a shipped file changes so phones pick it up.
  */
 
-const CACHE_VERSION = 'family-finance-v4';
+const CACHE_VERSION = 'family-finance-v5';
 
 const ASSETS = [
   './',
@@ -29,6 +29,10 @@ const ASSETS = [
   './js/views/plan.js',
   './js/views/records.js',
   './js/views/reports.js',
+  './js/views/calc.js',
+  './js/calcmath.js',
+  './js/prefs.js',
+  './js/sync.js',
 ];
 
 self.addEventListener('install', (event) => {

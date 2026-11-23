@@ -113,6 +113,25 @@ export const MONTHS_EN = [
   'Mehr', 'Aban', 'Azar', 'Dey', 'Bahman', 'Esfand',
 ];
 
+export const GREGORIAN_MONTHS_FA = [
+  'ژانویه', 'فوریه', 'مارس', 'آوریل', 'مه', 'ژوئن',
+  'ژوئیه', 'اوت', 'سپتامبر', 'اکتبر', 'نوامبر', 'دسامبر',
+];
+
+export const GREGORIAN_MONTHS_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+export function gregorianMonthName(gm, lang) {
+  const list = lang === 'en' ? GREGORIAN_MONTHS_EN : GREGORIAN_MONTHS_FA;
+  return list[Math.min(Math.max(gm, 1), 12) - 1];
+}
+
+export function gregorianMonthLength(gy, gm) {
+  return new Date(Date.UTC(gy, gm, 0)).getUTCDate();
+}
+
 /* Saturday first, matching the Iranian week. */
 export const WEEKDAYS_FA = ['شنبه', 'یک‌شنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه'];
 export const WEEKDAYS_EN = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];

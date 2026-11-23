@@ -1,12 +1,23 @@
 /*
- * Small shared helpers: digits, Toman formatting, Jalali display formatting,
- * DOM-safe text, files for export/backup.
+ * Shared helpers: digits, money formatting, date formatting, DOM-safe text,
+ * and the files used for export and backup.
+ *
+ * Money is always stored as whole Toman. If the user picks Rial as the display
+ * currency, formatNumber multiplies by 10 on the way out and parseAmount
+ * divides by 10 on the way in — a conversion that is announced on screen,
+ * never silent.
+ *
+ * Dates are always stored as ISO Gregorian strings. If the user picks the
+ * Gregorian calendar, the display helpers below print Gregorian dates instead
+ * of Jalali ones; the stored value never changes.
  */
 
 import { L, getLang } from './i18n.js';
 import {
-  isoToJalali, monthKeyParts, monthName, weekdayName, relativeIso, pad2,
+  isoToJalali, monthKeyParts, monthName, weekdayName, relativeIso, pad2, partsFromISO,
+  isoFromParts, monthKeyStartISO, monthKeyEndISO, gregorianMonthName,
 } from './jalali.js';
+import { isGregorian, currencyMultiplier, currencyLabel } from './prefs.js';
 
 const FA_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 const GROUPER = new Intl.NumberFormat('en-US');
@@ -34,18 +45,18 @@ export function faDigits(input) {
   return getLang() === 'en' ? s : toPersianDigits(s);
 }
 
-/* 1250000 -> "۱٬۲۵۰٬۰۰۰" (fa) or "1,250,000" (en). Always Toman, never Rial. */
+/* Money as digits in the display currency: 1250000 Toman -> "۱٬۲۵۰٬۰۰۰",
+ * or in Rial mode "۱۲٬۵۰۰٬۰۰۰". */
 export function formatNumber(value) {
-  const n = Number(value);
-  const safe = Number.isFinite(n) ? n : 0;
-  const negative = safe < 0;
-  const grouped = GROUPER.format(Math.round(Math.abs(safe)));
+  const n = (Number(value) || 0) * currencyMultiplier();
+  const negative = n < 0;
+  const grouped = GROUPER.format(Math.round(Math.abs(n)));
   if (getLang() === 'en') return (negative ? '-' : '') + grouped;
   return (negative ? '-' : '') + toPersianDigits(grouped).replace(/,/g, '٬');
 }
 
 export function formatMoney(value) {
-  return `${formatNumber(value)} ${L('تومان', 'Toman')}`;
+  return `${formatNumber(value)} ${currencyLabel()}`;
 }
 
 export function formatSignedMoney(value) {
@@ -56,12 +67,13 @@ export function formatSignedMoney(value) {
 
 /* Value shown inside an amount <input>: plain ASCII with simple commas. */
 export function formatAmountForInput(value) {
-  const n = Number(value);
+  const n = (Number(value) || 0) * currencyMultiplier();
   if (!Number.isFinite(n) || n === 0) return '';
   return GROUPER.format(Math.round(n));
 }
 
-/* Accepts "1,250,000", "۱۲۵۰۰۰۰", " 1250000 " and returns 1250000, or NaN. */
+/* Accepts "1,250,000", "۱۲۵۰۰۰۰", " 1250000 " and returns the amount in Toman.
+ * In Rial mode the typed number is divided back by 10. */
 export function parseAmount(input) {
   if (input === null || input === undefined) return NaN;
   let s = normalizeDigits(input);
@@ -70,7 +82,7 @@ export function parseAmount(input) {
   if (!/^-?\d+(\.\d+)?$/.test(s)) return NaN;
   const value = Number(s);
   if (!Number.isFinite(value)) return NaN;
-  return Math.round(value);
+  return Math.round(value / currencyMultiplier());
 }
 
 export function escapeHtml(value) {
@@ -121,9 +133,15 @@ export function titleCaseFirst(text) {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
-/* ---------- Jalali display formatting ---------- */
+/* ---------- date display (Jalali or Gregorian) ---------- */
 
 export function formatDate(iso) {
+  if (isGregorian()) {
+    const p = partsFromISO(iso);
+    const month = gregorianMonthName(p.gm, getLang());
+    if (getLang() === 'en') return `${p.gd} ${month} ${p.gy}`;
+    return `${faDigits(p.gd)} ${month} ${faDigits(p.gy)}`;
+  }
   const j = isoToJalali(iso);
   const month = monthName(j.jm, getLang());
   if (getLang() === 'en') return `${j.jd} ${month} ${j.jy}`;
@@ -131,28 +149,66 @@ export function formatDate(iso) {
 }
 
 export function formatDateListHeader(iso) {
+  const wd = weekdayName(iso, getLang());
+  if (isGregorian()) {
+    const p = partsFromISO(iso);
+    const month = gregorianMonthName(p.gm, getLang());
+    if (getLang() === 'en') return `${wd}, ${p.gd} ${month} ${p.gy}`;
+    return `${wd} ${faDigits(p.gd)} ${month}`;
+  }
   const j = isoToJalali(iso);
   const month = monthName(j.jm, getLang());
-  const wd = weekdayName(iso, getLang());
   if (getLang() === 'en') return `${wd}, ${j.jd} ${month} ${j.jy}`;
   return `${wd} ${faDigits(j.jd)} ${month}`;
 }
 
 export function formatDateShort(iso) {
+  if (isGregorian()) {
+    const p = partsFromISO(iso);
+    return faDigits(`${p.gy}/${pad2(p.gm)}/${pad2(p.gd)}`);
+  }
   const j = isoToJalali(iso);
-  const s = `${j.jy}/${pad2(j.jm)}/${pad2(j.jd)}`;
-  return faDigits(s);
+  return faDigits(`${j.jy}/${pad2(j.jm)}/${pad2(j.jd)}`);
 }
 
+/* Month periods stay Jalali inside the app: salaries, instalments and the
+ * month grouping all follow the Iranian month. In Gregorian mode the label
+ * shows which Gregorian months that period covers. */
 export function formatMonthLabel(key) {
+  if (isGregorian()) {
+    const start = partsFromISO(monthKeyStartISO(key));
+    const end = partsFromISO(monthKeyEndISO(key));
+    const a = gregorianMonthName(start.gm, getLang());
+    const b = gregorianMonthName(end.gm, getLang());
+    if (start.gm === end.gm && start.gy === end.gy) return `${a} ${faDigits(start.gy)}`;
+    if (start.gy === end.gy) return `${a}–${b} ${faDigits(end.gy)}`;
+    return `${a} ${faDigits(start.gy)} – ${b} ${faDigits(end.gy)}`;
+  }
   const { jy, jm } = monthKeyParts(key);
-  const month = monthName(jm, getLang());
-  return `${month} ${faDigits(jy)}`;
+  return `${monthName(jm, getLang())} ${faDigits(jy)}`;
 }
 
 export function formatMonthLabelShort(key) {
+  if (isGregorian()) {
+    const start = partsFromISO(monthKeyStartISO(key));
+    return `${gregorianMonthName(start.gm, getLang())} ${faDigits(String(start.gy).slice(2))}`;
+  }
   const { jy, jm } = monthKeyParts(key);
   return `${monthName(jm, getLang())} ${faDigits(String(jy).slice(2))}`;
+}
+
+/* Both calendars at once, for report headers: "مهر ۱۴۰۴ · Sep – Oct 2025". */
+export function formatMonthLabelDual(key) {
+  const { jy, jm } = monthKeyParts(key);
+  const jalaliPart = `${monthName(jm, getLang())} ${faDigits(jy)}`;
+  const start = partsFromISO(monthKeyStartISO(key));
+  const end = partsFromISO(monthKeyEndISO(key));
+  const a = gregorianMonthName(start.gm, getLang());
+  const b = gregorianMonthName(end.gm, getLang());
+  const gregorianPart = start.gm === end.gm
+    ? `${a} ${faDigits(start.gy)}`
+    : `${a} – ${b} ${faDigits(end.gy)}`;
+  return `${jalaliPart} · ${gregorianPart}`;
 }
 
 export function formatDateTime(when = new Date()) {
@@ -160,6 +216,10 @@ export function formatDateTime(when = new Date()) {
   const iso = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   return `${formatDate(iso)} — ${faDigits(time)}`;
+}
+
+export function isoFromDate(date) {
+  return isoFromParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
 export function relativeDay(iso) {
@@ -176,7 +236,7 @@ export function daysLabel(days) {
   return L(`${faDigits(n)} روز`, `${n} day${n === 1 ? '' : 's'}`);
 }
 
-/* ---------- Files ---------- */
+/* ---------- files ---------- */
 
 export function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
@@ -236,7 +296,7 @@ export function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-/* Stable file name part for Jalali dates. */
+/* Stable file-name stem: always Jalali, whatever the display calendar is. */
 export function fileStamp(date = new Date()) {
   const iso = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
   const j = isoToJalali(iso);

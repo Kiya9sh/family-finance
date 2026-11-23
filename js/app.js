@@ -20,6 +20,7 @@ import {
 import { renderDashboard } from './views/dashboard.js';
 import { renderRecords } from './views/records.js';
 import { renderPlan } from './views/plan.js';
+import { renderCalc } from './views/calc.js';
 import { renderReports } from './views/reports.js';
 import { renderMore } from './views/more.js';
 import { openTransactionSheet } from './views/entry.js';
@@ -28,6 +29,7 @@ const TABS = [
   { id: 'dashboard', route: '#/dashboard', icon: 'home', fa: 'خانه', en: 'Home' },
   { id: 'records', route: '#/records', icon: 'list', fa: 'تراکنش‌ها', en: 'Records' },
   { id: 'plan', route: '#/plan', icon: 'wallet', fa: 'برنامه', en: 'Planning' },
+  { id: 'calc', route: '#/calc', icon: 'calculator', fa: 'محاسبه', en: 'Calculate' },
   { id: 'reports', route: '#/reports', icon: 'doc', fa: 'گزارش', en: 'Report' },
   { id: 'more', route: '#/more', icon: 'grid', fa: 'بیشتر', en: 'More' },
 ];
@@ -72,6 +74,7 @@ function render() {
   let html = '';
   if (route.head === 'records') html = renderRecords();
   else if (route.head === 'plan') html = renderPlan();
+  else if (route.head === 'calc') html = renderCalc();
   else if (route.head === 'reports') html = renderReports();
   else if (route.head === 'more') html = renderMore(route.segments[1] || '');
   else html = renderDashboard();
