@@ -63,7 +63,7 @@ The app is plain static files (`index.html` at the top level, no build script, n
 
 - **From FreeMilk:** tap **Run** in this project. It publishes the files to the private preview link (`…--preview.freemilk.app`), which is HTTPS. **Go Live** in Project Details puts that version on the public link (`….freemilk.app`).
 - **Any free static host** works the same way, since there is nothing to compile:
-  - *GitHub Pages*: this repository ships `.github/workflows/pages.yml`. In **Settings → Pages**, set **Source** to **GitHub Actions**; every push to `main` then copies `index.html`, `styles.css`, `sw.js`, `manifest.webmanifest`, `icons/` and `js/` into `_site` and publishes it. The site appears at `https://<user>.github.io/<repo>/` a minute or two after the run finishes (Actions tab). You can also start a run by hand: Actions → *Deploy to GitHub Pages* → Run workflow. If you would rather not use a workflow, set **Source** to **Deploy from a branch**, branch `main`, folder `/ (root)` instead — both serve the same files.
+  - *GitHub Pages*: in **Settings → Pages**, set **Source** to **Deploy from a branch**, branch `main`, folder `/ (root)`. Every push to `main` publishes the site at `https://<user>.github.io/<repo>/` a minute or so later. No workflow file is needed and none is included: the repository is plain static files.
   - *Netlify Drop*: drag the folder onto `app.netlify.com/drop`.
   - *Cloudflare Pages*: connect the repository, empty build command, output directory `/`.
   
