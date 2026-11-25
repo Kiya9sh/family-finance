@@ -6,7 +6,7 @@
  * Bump CACHE_VERSION whenever a shipped file changes so phones pick it up.
  */
 
-const CACHE_VERSION = 'family-finance-v6';
+const CACHE_VERSION = 'family-finance-v7';
 
 const ASSETS = [
   './',
@@ -90,21 +90,15 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
-      const cached = await cache.match(request);
-      if (cached) {
-        fetch(request)
-          .then((response) => {
-            if (response && response.ok) cache.put(request, response.clone());
-          })
-          .catch(() => {});
-        return cached;
-      }
       try {
+        /* Fresh files first, so a new release is never fighting a stale cache
+         * entry; the cache is the offline fallback, not the first answer. */
         const response = await fetch(request);
         if (response && response.ok) cache.put(request, response.clone());
         return response;
       } catch (err) {
-        return Response.error();
+        const cached = await cache.match(request);
+        return cached || Response.error();
       }
     })(),
   );

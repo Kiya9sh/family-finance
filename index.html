@@ -40,6 +40,25 @@
       </div>
     </noscript>
 
+    <div id="boot-error" hidden class="boot-error">
+      <div class="card">
+        <h2 class="page-title">برنامه بارگذاری نشد</h2>
+        <p class="card__sub">
+          فایل‌های برنامه به گوشی نرسیده‌اند. اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.
+          اگر باز هم خالی ماند، لینک را در یک تب ناشناس (Private) باز کنید.
+        </p>
+        <button type="button" class="btn btn--primary" onclick="location.reload()">تلاش دوباره</button>
+      </div>
+    </div>
+
+    <script>
+      window.setTimeout(function () {
+        if (window.__appBooted) return;
+        var box = document.getElementById('boot-error');
+        if (box) box.hidden = false;
+      }, 8000);
+    </script>
+
     <script type="module" src="js/app.js"></script>
   </body>
 </html>
