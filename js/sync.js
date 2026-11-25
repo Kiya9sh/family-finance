@@ -23,6 +23,7 @@ export const SHARE_STORES = [
   'loans',
   'lendings',
   'accounts',
+  'assets',
 ];
 
 export function buildShareFile() {

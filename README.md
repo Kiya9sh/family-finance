@@ -148,3 +148,13 @@ Added on top of version 1:
 - **Income tax estimate** — taxable income after deductions, progressive brackets you can edit (the defaults are placeholders, not the law), tax already paid, and the balance due or refund. The screen says plainly it is an estimate.
 - **Markdown and JSON exports** — the Report tab and More → Backup both write `.md`; the JSON backup is the only format that can be restored, and the backup screen says so next to the buttons.
 - **Family sharing** — a phone-to-phone exchange file that *merges* instead of replacing: people, categories and stores are matched by name, a newer edit wins, and deletions travel as tombstones so a removed record does not come back. No server, no account. Live sync between phones would need its own secure backend and is not part of this version.
+
+
+---
+
+## Version 3
+
+- **More currencies** — display amounts in Toman, Rial, US dollar, Euro or a custom unit of your own naming. Amounts are still stored in Toman; the other units use a rate you enter (Rial is fixed at 10), and the rate screen is where you change it. Nothing is converted without the unit being written next to the number.
+- **Investment holdings** — Planning → *Assets*: currencies, gold, silver, shares and crypto, each with quantity, unit, price per unit and optional buy price, so the screen can show portfolio value and gain or loss. Values are quantity × price, and prices can be updated by hand in one pass or fetched from a public source when the network allows it.
+- **Update check** — More → *App version*: a button asks the browser whether a newer version is waiting and reloads into it. iOS never updates an installed web app on its own, so this is the only way to pull a release onto the Home Screen icon.
+- Database v3 adds the `assets` store; the version-3 cache is `family-finance-v6`.

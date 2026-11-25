@@ -6,7 +6,7 @@
  * Bump CACHE_VERSION whenever a shipped file changes so phones pick it up.
  */
 
-const CACHE_VERSION = 'family-finance-v5';
+const CACHE_VERSION = 'family-finance-v6';
 
 const ASSETS = [
   './',
@@ -33,6 +33,8 @@ const ASSETS = [
   './js/calcmath.js',
   './js/prefs.js',
   './js/sync.js',
+  './js/assets.js',
+  './js/update.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -53,6 +55,11 @@ self.addEventListener('activate', (event) => {
       await self.clients.claim();
     })(),
   );
+});
+
+/* The app's "Reload the app" button asks the waiting worker to take over. */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
