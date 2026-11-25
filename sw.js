@@ -1,12 +1,12 @@
 /*
  * Offline cache for the whole app shell.
  *
- * The app is plain static files, so the service worker simply precaches them on
- * install and serves the cache first, refreshing entries in the background.
- * Bump CACHE_VERSION whenever a shipped file changes so phones pick it up.
+ * Files are fetched from the network first and the cache is the offline
+ * fallback, so a phone can never keep serving an older release's scripts
+ * alongside a newer page. Bump CACHE_VERSION whenever a shipped file changes.
  */
 
-const CACHE_VERSION = 'family-finance-v7';
+const CACHE_VERSION = 'family-finance-r2';
 
 const ASSETS = [
   './',
@@ -33,8 +33,6 @@ const ASSETS = [
   './js/calcmath.js',
   './js/prefs.js',
   './js/sync.js',
-  './js/assets.js',
-  './js/update.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -55,11 +53,6 @@ self.addEventListener('activate', (event) => {
       await self.clients.claim();
     })(),
   );
-});
-
-/* The app's "Reload the app" button asks the waiting worker to take over. */
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -91,8 +84,8 @@ self.addEventListener('fetch', (event) => {
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
       try {
-        /* Fresh files first, so a new release is never fighting a stale cache
-         * entry; the cache is the offline fallback, not the first answer. */
+        /* Fresh files first, so an older cached copy can never fight a new
+         * release; the cache is only the offline fallback. */
         const response = await fetch(request);
         if (response && response.ok) cache.put(request, response.clone());
         return response;

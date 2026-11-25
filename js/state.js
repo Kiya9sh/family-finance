@@ -8,7 +8,7 @@
 
 import * as db from './db.js';
 import { L, getLang, setLang } from './i18n.js';
-import { setCalendarMode, setCurrencyMode, tomanPerUnit } from './prefs.js';
+import { setCalendarMode, setCurrencyMode } from './prefs.js';
 import {
   todayISO, currentMonthKey, monthKeyOfISO, monthKeyStartISO, monthKeyEndISO,
   addMonthsToKey, addMonthsToISO, addDaysISO, diffDaysISO, daysInMonthKey,
@@ -24,7 +24,6 @@ export const data = {
   loans: [],
   lendings: [],
   accounts: [],
-  assets: [],
   tombstones: [],
   settings: {},
 };
@@ -65,8 +64,6 @@ export const DEFAULT_SETTINGS = {
   lang: 'fa',
   calendar: 'jalali',
   currency: 'toman',
-  fx: { usd: 0, eur: 0, custom: 0, customLabel: '' },
-  ratesUpdatedAt: '',
   onboarded: false,
   reminderEnabled: false,
   reminderTime: '21:00',
@@ -93,11 +90,10 @@ export async function initState() {
     ...DEFAULT_SETTINGS,
     ...stored,
     lastUsed: { ...DEFAULT_SETTINGS.lastUsed, ...(stored.lastUsed || {}) },
-    fx: { ...DEFAULT_SETTINGS.fx, ...(stored.fx || {}) },
   };
   setLang(data.settings.lang);
   setCalendarMode(data.settings.calendar);
-  setCurrencyMode(data.settings.currency, data.settings.fx);
+  setCurrencyMode(data.settings.currency);
 
   await ensureDefaults();
   const created = await materializeRecurring();
@@ -168,13 +164,9 @@ export function defaultCategories() {
 /* ---------------- writes ---------------- */
 
 export async function saveSettings(patch) {
-  data.settings = {
-    ...data.settings,
-    ...patch,
-    fx: { ...(data.settings.fx || {}), ...(patch.fx || {}) },
-  };
+  data.settings = { ...data.settings, ...patch };
   if (patch.calendar) setCalendarMode(patch.calendar);
-  if (patch.currency || patch.fx) setCurrencyMode(data.settings.currency, data.settings.fx);
+  if (patch.currency) setCurrencyMode(patch.currency);
   if (patch.lang) setLang(patch.lang);
   await db.put('settings', data.settings);
   return data.settings;
@@ -934,7 +926,6 @@ export async function restoreBackup(payload) {
     ...(settingsRows.length ? storedSettings : {}),
     id: 'app',
     lastUsed: { ...DEFAULT_SETTINGS.lastUsed, ...(storedSettings.lastUsed || {}) },
-    fx: { ...DEFAULT_SETTINGS.fx, ...(storedSettings.fx || {}) },
   };
   cleaned.settings = [settingsRecord];
 
@@ -946,7 +937,7 @@ export async function restoreBackup(payload) {
   data.settings = settingsRecord;
   setLang(data.settings.lang);
   setCalendarMode(data.settings.calendar);
-  setCurrencyMode(data.settings.currency, data.settings.fx);
+  setCurrencyMode(data.settings.currency);
   await materializeRecurring();
   return true;
 }
@@ -983,73 +974,4 @@ export function parseAmountSafe(value) {
 
 export function monthKeyOfDate(iso) {
   return monthKeyOfISO(iso);
-}
-
-
-/* ---------------- investments ---------------- */
-
-export const ASSET_KINDS = ['currency', 'gold', 'silver', 'crypto', 'stock', 'other'];
-
-/* Price of one unit, in Toman. The price itself may be quoted in Toman, Rial,
- * USD, EUR or the custom unit, so it is converted with the user's own rates. */
-export function assetPriceToman(asset) {
-  const price = Number(asset.pricePerUnit) || 0;
-  const rate = tomanPerUnit(asset.priceCurrency || 'toman');
-  return rate > 0 ? price * rate : 0;
-}
-
-export function assetValueToman(asset) {
-  return (Number(asset.quantity) || 0) * assetPriceToman(asset);
-}
-
-export function assetCostToman(asset) {
-  const buy = Number(asset.buyPricePerUnit) || 0;
-  if (!buy) return 0;
-  const rate = tomanPerUnit(asset.buyCurrency || asset.priceCurrency || 'toman');
-  return (Number(asset.quantity) || 0) * buy * (rate > 0 ? rate : 0);
-}
-
-export function portfolioSummary(personIds = activeFilterIds()) {
-  const list = (data.assets || []).filter(
-    (asset) => !personIds || !personIds.length || personIds.includes(asset.profileId),
-  );
-  const value = sum(list, assetValueToman);
-  const cost = sum(list, assetCostToman);
-  const gain = value - cost;
-  const byKind = ASSET_KINDS
-    .map((kind) => {
-      const rows = list.filter((asset) => asset.kind === kind);
-      return { kind, count: rows.length, value: sum(rows, assetValueToman) };
-    })
-    .filter((row) => row.count > 0);
-  return {
-    value,
-    cost,
-    gain,
-    gainPct: cost ? Math.round((gain / cost) * 1000) / 10 : 0,
-    count: list.length,
-    byKind,
-    oldestUpdate: list
-      .map((asset) => asset.updatedAt || '')
-      .filter(Boolean)
-      .sort()[0] || '',
-  };
-}
-
-export function assetsSorted() {
-  return (data.assets || []).slice().sort((a, b) => assetValueToman(b) - assetValueToman(a));
-}
-
-/* Apply a new price to every asset that the given market data covers. */
-export async function applyMarketPrices({ crypto = {} } = {}) {
-  let changed = 0;
-  for (const asset of assetsSorted()) {
-    const key = (asset.gecko || '').toLowerCase();
-    const usdPrice = key && crypto[key] ? Number(crypto[key]) : 0;
-    if (!usdPrice || asset.priceCurrency !== 'usd') continue;
-    if (Math.abs((Number(asset.pricePerUnit) || 0) - usdPrice) < 0.0000001) continue;
-    await upsert('assets', { ...asset, pricePerUnit: usdPrice, updatedAt: new Date().toISOString() });
-    changed += 1;
-  }
-  return changed;
 }

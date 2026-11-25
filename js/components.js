@@ -15,7 +15,7 @@ import {
   isoToJalali, jalaliToISO, jalaaliMonthLength, monthName, todayISO, monthKeyParts,
   partsFromISO, isoFromParts, gregorianMonthLength, gregorianMonthName,
 } from './jalali.js';
-import { currencyLabel, currencyDecimals, getCalendarMode } from './prefs.js';
+import { currencyLabel, getCalendarMode } from './prefs.js';
 
 /* ---------------- icons ---------------- */
 
@@ -367,13 +367,7 @@ export function bindInputs(root = document) {
     };
     input.addEventListener('input', () => {
       const caretAtEnd = input.selectionStart === input.value.length;
-      /* Foreign currencies need a decimal point; Toman and Rial do not. */
-      const decimals = currencyDecimals();
-      let cleaned = normalizeDigits(input.value);
-      cleaned = decimals > 0
-        ? cleaned.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
-        : cleaned.replace(/[^\d]/g, '');
-      input.value = cleaned;
+      input.value = normalizeDigits(input.value).replace(/[^\d]/g, '');
       if (!caretAtEnd) return;
       updatePreview();
     });

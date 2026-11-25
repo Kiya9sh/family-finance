@@ -7,7 +7,7 @@
  */
 
 export const DB_NAME = 'family-finance';
-export const DB_VERSION = 3;
+export const DB_VERSION = 2;
 
 export const STORES = [
   'profiles',
@@ -18,28 +18,68 @@ export const STORES = [
   'loans',
   'lendings',
   'accounts',
-  'assets',
   'tombstones',
   'settings',
 ];
 
 let dbPromise = null;
 
+/*
+ * A database opened by a newer build (a version higher than DB_VERSION) makes
+ * `indexedDB.open(name, DB_VERSION)` fail outright, which would leave this
+ * build unable to start on that phone. Read the version that is actually
+ * stored, then always open at least that, so the app runs on a database an
+ * earlier or later release left behind. Missing stores are added on upgrade;
+ * stores this build does not know about are simply left alone.
+ */
+function probeVersion() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    try {
+      const request = indexedDB.open(DB_NAME);
+      request.onsuccess = () => {
+        const db = request.result;
+        const version = db.version;
+        db.close();
+        done(version);
+      };
+      request.onerror = () => done(0);
+      request.onblocked = () => done(0);
+      setTimeout(() => done(0), 3000);
+    } catch (err) {
+      done(0);
+    }
+  });
+}
+
 function open() {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      STORES.forEach((name) => {
-        if (!db.objectStoreNames.contains(name)) {
-          db.createObjectStore(name, { keyPath: 'id' });
-        }
-      });
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('IndexedDB unavailable'));
-    request.onblocked = () => reject(new Error('IndexedDB blocked by another tab'));
+  dbPromise = (async () => {
+    const existing = await probeVersion();
+    const version = Math.max(existing || 0, DB_VERSION);
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, version);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        STORES.forEach((name) => {
+          if (!db.objectStoreNames.contains(name)) {
+            db.createObjectStore(name, { keyPath: 'id' });
+          }
+        });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error('IndexedDB unavailable'));
+      request.onblocked = () => reject(new Error('IndexedDB blocked by another tab'));
+    });
+  })().catch((err) => {
+    /* Let a later attempt try again rather than caching the failure. */
+    dbPromise = null;
+    throw err;
   });
   return dbPromise;
 }

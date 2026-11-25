@@ -40,18 +40,39 @@
       </div>
     </noscript>
 
-    <div id="boot-error" hidden class="boot-error">
-      <div class="card">
-        <h2 class="page-title">برنامه بارگذاری نشد</h2>
-        <p class="card__sub">
-          فایل‌های برنامه به گوشی نرسیده‌اند. اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.
-          اگر باز هم خالی ماند، لینک را در یک تب ناشناس (Private) باز کنید.
+    <div
+      id="boot-error"
+      hidden
+      style="position:fixed;inset:0;z-index:90;overflow:auto;background:#f6f7f9;padding:18px;font-family:-apple-system,'SF Pro Text',Tahoma,sans-serif;color:#14212b;line-height:1.7"
+    >
+      <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;padding:18px">
+        <h2 style="font-size:18px;margin:0 0 8px">برنامه بارگذاری نشد</h2>
+        <p style="font-size:14px;color:#475569;margin:0 0 14px">
+          فایل‌های برنامه به گوشی نرسیده‌اند یا نسخه‌ای نیمه‌کاره در حافظه مانده است.
+          اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.
         </p>
-        <button type="button" class="btn btn--primary" onclick="location.reload()">تلاش دوباره</button>
+        <button
+          type="button"
+          onclick="location.reload()"
+          style="width:100%;padding:14px;font-size:16px;font-weight:600;color:#fff;background:#0f766e;border:0;border-radius:14px"
+        >
+          تلاش دوباره
+        </button>
+        <a
+          href="./reset.html"
+          style="display:block;margin-top:12px;font-size:14px;color:#0f766e;text-align:center"
+        >
+          پاک کردن فایل‌های ذخیره‌شده برنامه
+        </a>
+        <p style="font-size:12px;color:#64748b;margin:14px 0 0">
+          رکوردهای شما با این کار پاک نمی‌شوند.
+        </p>
       </div>
     </div>
 
     <script>
+      /* Runs on its own, without the app's modules: if they fail to load or
+       * throw while starting, show a way out instead of a blank screen. */
       window.setTimeout(function () {
         if (window.__appBooted) return;
         var box = document.getElementById('boot-error');

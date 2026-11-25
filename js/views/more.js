@@ -18,13 +18,11 @@ import {
   sectionTitle, segmented,
 } from '../components.js';
 import { onAction, rerender, go, onForm } from '../bus.js';
-import { checkForUpdates, applyUpdate } from '../update.js';
 import { buildReportMarkdown } from '../report.js';
 import { buildShareFile, mergeShareFile } from '../sync.js';
 import { getCalendarMode, getCurrencyMode } from '../prefs.js';
 
 const revealedAccounts = new Set();
-const APP_VERSION = '3.0.0';
 
 const ROLE_LABELS = {
   self: () => L('خودم', 'Myself'),
@@ -69,19 +67,6 @@ function moreIndex() {
       ${navRow('#/more/family', 'users', L('همگام‌سازی خانواده', 'Family sharing'), L('تبادل فایل بین گوشی‌ها', 'Exchange files between phones'))}
       ${navRow('#/more/backup', 'shield', L('پشتیبان‌گیری و بازیابی', 'Backup & restore'), L('فایل روی همین گوشی', 'A file on this phone'))}
       ${navRow('#/more/about', 'info', L('راهنما و محدودیت‌ها', 'Help & limitations'), '')}
-    </section>
-
-    <section class="card">
-      ${sectionTitle(L('نسخه برنامه', 'App version'))}
-      <p class="card__sub">${esc(L(`نسخه نصب‌شده: ${APP_VERSION}`, `Installed version: ${APP_VERSION}`))}</p>
-      <div class="row row--gap row--wrap">
-        <button type="button" class="btn btn--ghost btn--small" data-action="check-update">${esc(L('بررسی به‌روزرسانی', 'Check for updates'))}</button>
-        <button type="button" class="btn btn--primary btn--small" data-action="apply-update">${esc(L('بارگذاری دوباره', 'Reload the app'))}</button>
-      </div>
-      <p class="card__sub" data-update-status>${esc(L(
-        'برای دیدن نسخه تازه، «بررسی» را بزنید. iOS خودش برنامه‌ها را به‌روز نمی‌کند.',
-        'Tap Check to look for a newer version. iOS does not update installed web apps by itself.',
-      ))}</p>
     </section>
 
     <section class="card">
@@ -937,7 +922,6 @@ onAction('delete-all', async () => {
 /* ---------------- version 2: display, family sharing, exports ---------------- */
 
 function displayPage() {
-  const fx = data.settings.fx || {};
   return `<div class="view">
     <div class="view-head">
       ${backLink()}
@@ -961,48 +945,10 @@ function displayPage() {
       ${segmented('currency', [
         { value: 'toman', label: L('تومان', 'Toman') },
         { value: 'rial', label: L('ریال', 'Rial') },
-        { value: 'usd', label: L('دلار', 'USD') },
-        { value: 'eur', label: L('یورو', 'EUR') },
-        { value: 'custom', label: L('دلخواه', 'Custom') },
       ], getCurrencyMode(), 'set-currency')}
       <p class="card__sub">${esc(L(
-        'مبلغ‌ها همیشه به تومان ذخیره می‌شوند. واحد دیگر همان مبلغ است تقسیم بر نرخی که خودتان وارد می‌کنید (ریال ثابت: ۱۰ به ازای هر تومان)؛ هر چه تایپ کنید دوباره به تومان برمی‌گردد.',
-        'Amounts are always stored in Toman. Another unit is the same money divided by a rate you control (Rial is fixed at 10 to the Toman); whatever you type is converted back to Toman.',
-      ))}</p>
-    </section>
-
-    <section class="card">
-      ${sectionTitle(L('نرخ ارز (تومان برای هر واحد)', 'Exchange rates (Toman per unit)'))}
-      <form data-form="rates">
-        <div class="form-grid">
-          ${field({
-            label: L('دلار آمریکا', 'US dollar'),
-            input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="usd" value="${esc(fx.usd ? String(fx.usd) : '')}" placeholder="0">`,
-          })}
-          ${field({
-            label: L('یورو', 'Euro'),
-            input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="eur" value="${esc(fx.eur ? String(fx.eur) : '')}" placeholder="0">`,
-          })}
-        </div>
-        <div class="form-grid">
-          ${field({
-            label: L('نام واحد دلخواه', 'Custom unit name'),
-            input: `<input class="input" name="customLabel" maxlength="16" autocomplete="off" value="${esc(fx.customLabel || '')}"
-              placeholder="${esc(L('مثلاً لیر', 'e.g. lira'))}">`,
-          })}
-          ${field({
-            label: L('نرخ واحد دلخواه', 'Custom rate'),
-            input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="custom" value="${esc(fx.custom ? String(fx.custom) : '')}" placeholder="0">`,
-          })}
-        </div>
-        <div class="row row--gap row--wrap">
-          <button type="submit" class="btn btn--primary btn--small">${esc(L('ذخیره نرخ‌ها', 'Save rates'))}</button>
-          <button type="button" class="btn btn--ghost btn--small" data-action="fetch-prices">${esc(L('دریافت نرخ آنلاین', 'Fetch rates online'))}</button>
-        </div>
-      </form>
-      <p class="card__sub">${esc(L(
-        'نرخ‌ها را خودتان وارد کنید. دکمه دریافت، فقط یک نرخ عمومی می‌آورد و ممکن است در دسترس نباشد؛ عدد خودتان همیشه مرجع است.',
-        'Enter the rates yourself. The fetch button asks a public source and may be unavailable; your own number always wins.',
+        'مبلغ‌ها همیشه به تومان ذخیره می‌شوند. با انتخاب ریال، همان مبلغ‌ها ضربدر ۱۰ نشان داده می‌شوند و آنچه تایپ می‌کنید به تومان برمی‌گردد. هیچ نرخ تبدیل دیگری به کار نمی‌رود.',
+        'Amounts are always stored in Toman. Choosing Rial shows the same amounts multiplied by 10, and what you type is converted back to Toman. No other exchange rate is used.',
       ))}</p>
     </section>
   </div>`;
@@ -1106,54 +1052,8 @@ onAction('set-calendar', async (element) => {
 });
 
 onAction('set-currency', async (element) => {
-  const allowed = ['toman', 'rial', 'usd', 'eur', 'custom'];
-  const next = allowed.includes(element.dataset.value) ? element.dataset.value : 'toman';
-  await saveSettings({ currency: next });
-  const fx = data.settings.fx || {};
-  if ((next === 'usd' && !fx.usd) || (next === 'eur' && !fx.eur) || (next === 'custom' && !fx.custom)) {
-    toast(L('اول نرخ این واحد را پایین‌تر وارد کنید.', 'Enter the rate for this unit below first.'), 'warn');
-  }
+  await saveSettings({ currency: element.dataset.value === 'rial' ? 'rial' : 'toman' });
   rerender();
-});
-
-onForm('rates', async (form) => {
-  const read = (name) => {
-    const raw = normalizeDigits(form.elements[name].value).replace(/[,٬،\s]/g, '');
-    const value = Number(raw);
-    return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
-  };
-  await saveSettings({
-    fx: {
-      usd: read('usd'),
-      eur: read('eur'),
-      custom: read('custom'),
-      customLabel: form.elements.customLabel.value.trim(),
-    },
-    ratesUpdatedAt: new Date().toISOString(),
-  });
-  rerender();
-  toast(L('نرخ‌ها ذخیره شد', 'Rates saved'));
-});
-
-onAction('check-update', async () => {
-  const statusEl = document.querySelector('[data-update-status]');
-  if (statusEl) statusEl.textContent = L('در حال بررسی…', 'Checking…');
-  const result = await checkForUpdates();
-  const messages = {
-    ready: L('نسخه تازه آماده است؛ «بارگذاری دوباره» را بزنید.', 'A newer version is ready — tap Reload the app.'),
-    current: L('برنامه به‌روز است.', 'You are on the latest version.'),
-    none: L('نسخه از حافظه اجرا می‌شود؛ «بارگذاری دوباره» را بزنید.', 'Running from cache — tap Reload the app.'),
-    unsupported: L('این مرورگر از به‌روزرسانی درون‌برنامه‌ای پشتیبانی نمی‌کند.', 'This browser does not support in-app updates.'),
-    error: L('بررسی نشد؛ اتصال اینترنت را بررسی کنید.', 'Could not check — check your connection.'),
-  };
-  const message = messages[result.status] || '';
-  const full = result.serverVersion ? `${message} (${result.serverVersion})` : message;
-  if (statusEl) statusEl.textContent = full;
-  else toast(full, result.status === 'ready' ? 'ok' : 'warn');
-});
-
-onAction('apply-update', () => {
-  applyUpdate();
 });
 
 onForm('family', async (form) => {

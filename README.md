@@ -63,7 +63,7 @@ The app is plain static files (`index.html` at the top level, no build script, n
 
 - **From FreeMilk:** tap **Run** in this project. It publishes the files to the private preview link (`…--preview.freemilk.app`), which is HTTPS. **Go Live** in Project Details puts that version on the public link (`….freemilk.app`).
 - **Any free static host** works the same way, since there is nothing to compile:
-  - *GitHub Pages*: in **Settings → Pages**, set **Source** to **Deploy from a branch**, branch `main`, folder `/ (root)`. Every push to `main` publishes the site at `https://<user>.github.io/<repo>/` a minute or so later. No workflow file is needed and none is included: the repository is plain static files.
+  - *GitHub Pages*: in **Settings → Pages**, set **Source** to **Deploy from a branch**, branch `main`, folder `/ (root)`. Every push to `main` publishes the site at `https://<user>.github.io/<repo>/` a minute or so later. No workflow file is needed and none is included: the repository is plain static files. (Without a Pages run, even `/styles.css` answers 404 — that is what a "blank site" usually means.)
   - *Netlify Drop*: drag the folder onto `app.netlify.com/drop`.
   - *Cloudflare Pages*: connect the repository, empty build command, output directory `/`.
   
@@ -152,9 +152,27 @@ Added on top of version 1:
 
 ---
 
-## Version 3
+## Version history and recovery
 
-- **More currencies** — display amounts in Toman, Rial, US dollar, Euro or a custom unit of your own naming. Amounts are still stored in Toman; the other units use a rate you enter (Rial is fixed at 10), and the rate screen is where you change it. Nothing is converted without the unit being written next to the number.
-- **Investment holdings** — Planning → *Assets*: currencies, gold, silver, shares and crypto, each with quantity, unit, price per unit and optional buy price, so the screen can show portfolio value and gain or loss. Values are quantity × price, and prices can be updated by hand in one pass or fetched from a public source when the network allows it.
-- **Update check** — More → *App version*: a button asks the browser whether a newer version is waiting and reloads into it. iOS never updates an installed web app on its own, so this is the only way to pull a release onto the Home Screen icon.
-- Database v3 adds the `assets` store; the version-3 cache is `family-finance-v6`.
+The site ships **version 2** again. Version 3 (multi-currency display,
+investment holdings, in-app update check) was rolled back because the app did
+not open on the iPhone; its code stays in the git history and can be brought
+back from there once it can be tested.
+
+Two changes were kept from the later work because they make this version start
+reliably:
+
+- **The database opener asks the phone which version is stored** and opens at
+  least that, adding any missing stores. A phone that once ran version 3 has a
+  version-3 database, which used to make version 2 fail to open at all.
+- **The service worker fetches files from the network first** and keeps the
+  cache only as the offline fallback, so an older cached script can never be
+  paired with a newer page. The cache is named `family-finance-r2`.
+
+If the app ever shows a blank page or the «برنامه بارگذاری نشد» card:
+
+1. Tap **تلاش دوباره**.
+2. If that fails, open `<site>/reset.html` in Safari: it clears the cached app
+   files and the service worker, then reloads. **Your records are not touched.**
+3. Removing the Home Screen icon removes that icon's storage, so back up first
+   if you are going to do that.

@@ -285,44 +285,26 @@ function showFatal(message) {
   }
 }
 
-/* Never leave a blank screen: if building the first screen throws, say so and
- * offer the two recoveries that do not touch the family's records. */
-function showBootError(error) {
+/* Never leave a blank screen when building the first view throws. */
+function showBootFailure(error) {
   const view = document.getElementById('view');
   if (!view) return;
   const message = error && error.message ? error.message : String(error || 'unknown error');
   view.innerHTML = `<div class="view"><div class="card">
     <h2 class="page-title">${esc(L('برنامه بارگذاری نشد', 'The app could not start'))}</h2>
     <p class="card__sub">${esc(L(
-      'هنگام ساختن صفحه خطایی پیش آمد. متن زیر را برای پشتیبانی بفرستید.',
-      'Something failed while building the screen. Send the text below when you report it.',
+      'هنگام ساختن صفحه خطایی پیش آمد. متن زیر را بفرستید تا بررسی شود.',
+      'Something failed while building the screen. Send the text below so it can be checked.',
     ))}</p>
     <pre class="preview" dir="ltr">${esc(message)}</pre>
-    <button type="button" class="btn btn--primary" data-boot-retry>${esc(L('تلاش دوباره', 'Try again'))}</button>
+    <button type="button" class="btn btn--primary btn--grow" id="boot-retry">${esc(L('تلاش دوباره', 'Try again'))}</button>
     <p class="card__sub">${esc(L(
-      'اگر تکرار شد، فایل‌های ذخیره‌شده برنامه پاک شوند و از نو بیایند. رکوردهای شما دست نمی‌خورند.',
-      'If it keeps happening, clear the cached app files and load them again. Your records are not touched.',
+      'اگر تکرار شد، صفحه پاک‌سازی فایل‌ها را باز کنید: reset.html — رکوردها دست نمی‌خورند.',
+      'If it repeats, open the cleanup page: reset.html — your records are not touched.',
     ))}</p>
-    <button type="button" class="btn btn--ghost" data-boot-reset>${esc(L('پاک کردن فایل‌های برنامه و بارگذاری دوباره', 'Clear cached files and reload'))}</button>
   </div></div>`;
-  const retry = view.querySelector('[data-boot-retry]');
+  const retry = view.querySelector('#boot-retry');
   if (retry) retry.addEventListener('click', () => window.location.reload());
-  const reset = view.querySelector('[data-boot-reset]');
-  if (reset) {
-    reset.addEventListener('click', async () => {
-      try {
-        const names = await caches.keys();
-        await Promise.all(names.map((name) => caches.delete(name)));
-        if ('serviceWorker' in navigator) {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(registrations.map((registration) => registration.unregister()));
-        }
-      } catch (err) {
-        /* nothing else to do; the reload below is still worth trying */
-      }
-      window.location.reload();
-    });
-  }
 }
 
 async function boot() {
@@ -343,7 +325,7 @@ async function boot() {
     render();
     window.__appBooted = true;
   } catch (err) {
-    showBootError(err);
+    showBootFailure(err);
     return;
   }
   requestPersistentStorage();
