@@ -6,7 +6,7 @@
  * alongside a newer page. Bump CACHE_VERSION whenever a shipped file changes.
  */
 
-const CACHE_VERSION = 'family-finance-r2';
+const CACHE_VERSION = 'family-finance-r4';
 
 const ASSETS = [
   './',

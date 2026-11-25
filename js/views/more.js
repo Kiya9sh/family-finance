@@ -20,7 +20,7 @@ import {
 import { onAction, rerender, go, onForm } from '../bus.js';
 import { buildReportMarkdown } from '../report.js';
 import { buildShareFile, mergeShareFile } from '../sync.js';
-import { getCalendarMode, getCurrencyMode } from '../prefs.js';
+import { getCalendarMode, getCurrencyMode, getFxRates, currencyIsReady } from '../prefs.js';
 
 const revealedAccounts = new Set();
 
@@ -63,7 +63,7 @@ function moreIndex() {
       ${navRow('#/more/payees', 'store', L('فروشگاه‌ها و سایت‌ها', 'Stores & websites'), L(`${faDigits(data.payees.length)} مورد`, `${data.payees.length} saved`))}
       ${navRow('#/more/accounts', 'card', L('حساب‌ها', 'Accounts'), L('فقط نام و چهار رقم آخر', 'Nickname and last 4 digits only'))}
       ${navRow('#/more/reminder', 'bell', L('یادآور روزانه', 'Daily reminder'), data.settings.reminderEnabled ? `${data.settings.reminderTime}` : L('خاموش', 'Off'))}
-      ${navRow('#/more/display', 'calendar', L('تقویم و واحد پول', 'Calendar & currency'), L('شمسی یا میلادی؛ تومان یا ریال', 'Jalali or Gregorian; Toman or Rial'))}
+      ${navRow('#/more/display', 'calendar', L('تقویم و واحد پول', 'Calendar & currency'), L('شمسی یا میلادی؛ تومان، ریال، دلار، یورو یا دلخواه', 'Jalali or Gregorian; Toman, Rial, USD, EUR or custom'))}
       ${navRow('#/more/family', 'users', L('همگام‌سازی خانواده', 'Family sharing'), L('تبادل فایل بین گوشی‌ها', 'Exchange files between phones'))}
       ${navRow('#/more/backup', 'shield', L('پشتیبان‌گیری و بازیابی', 'Backup & restore'), L('فایل روی همین گوشی', 'A file on this phone'))}
       ${navRow('#/more/about', 'info', L('راهنما و محدودیت‌ها', 'Help & limitations'), '')}
@@ -90,7 +90,7 @@ function moreIndex() {
       </div>
     </section>
 
-    <p class="version">${esc(L('مدیریت مالی خانواده', 'Family Finance'))} · v2.0</p>
+    <p class="version">${esc(L('مدیریت مالی خانواده', 'Family Finance'))} · v2.1</p>
   </div>`;
 }
 
@@ -922,6 +922,8 @@ onAction('delete-all', async () => {
 /* ---------------- version 2: display, family sharing, exports ---------------- */
 
 function displayPage() {
+  const fx = getFxRates();
+  const ready = currencyIsReady();
   return `<div class="view">
     <div class="view-head">
       ${backLink()}
@@ -945,10 +947,51 @@ function displayPage() {
       ${segmented('currency', [
         { value: 'toman', label: L('تومان', 'Toman') },
         { value: 'rial', label: L('ریال', 'Rial') },
+        { value: 'usd', label: L('دلار', 'USD') },
+        { value: 'eur', label: L('یورو', 'EUR') },
+        { value: 'custom', label: L('دلخواه', 'Custom') },
       ], getCurrencyMode(), 'set-currency')}
       <p class="card__sub">${esc(L(
-        'مبلغ‌ها همیشه به تومان ذخیره می‌شوند. با انتخاب ریال، همان مبلغ‌ها ضربدر ۱۰ نشان داده می‌شوند و آنچه تایپ می‌کنید به تومان برمی‌گردد. هیچ نرخ تبدیل دیگری به کار نمی‌رود.',
-        'Amounts are always stored in Toman. Choosing Rial shows the same amounts multiplied by 10, and what you type is converted back to Toman. No other exchange rate is used.',
+        'مبلغ‌ها همیشه به تومان ذخیره می‌شوند. واحد دیگر همان مبلغ است تقسیم بر نرخی که خودتان وارد می‌کنید (ریال ثابت: ۱۰ به ازای هر تومان)؛ آنچه تایپ می‌کنید دوباره به تومان برمی‌گردد.',
+        'Amounts are always stored in Toman. Another unit is the same money divided by a rate you control (Rial is fixed at 10 to the Toman); what you type is converted back to Toman.',
+      ))}</p>
+      ${!ready
+        ? note(esc(L(
+          'برای این واحد هنوز نرخی ثبت نشده، پس مبلغ‌ها فعلاً به تومان نشان داده می‌شوند. نرخ را پایین‌تر وارد کنید.',
+          'No rate is saved for this unit yet, so amounts stay in Toman for now. Enter the rate below.',
+        )), 'warn')
+        : ''}
+    </section>
+
+    <section class="card">
+      ${sectionTitle(L('نرخ ارز (تومان برای هر واحد)', 'Exchange rates (Toman per unit)'))}
+      <form data-form="rates">
+        <div class="form-grid">
+          ${field({
+            label: L('دلار آمریکا', 'US dollar'),
+            input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="usd" value="${esc(fx.usd ? String(fx.usd) : '')}" placeholder="0">`,
+          })}
+          ${field({
+            label: L('یورو', 'Euro'),
+            input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="eur" value="${esc(fx.eur ? String(fx.eur) : '')}" placeholder="0">`,
+          })}
+        </div>
+        <div class="form-grid">
+          ${field({
+            label: L('نام واحد دلخواه', 'Custom unit name'),
+            input: `<input class="input" name="customLabel" maxlength="16" autocomplete="off" value="${esc(fx.customLabel || '')}"
+              placeholder="${esc(L('مثلاً لیر', 'e.g. lira'))}">`,
+          })}
+          ${field({
+            label: L('نرخ واحد دلخواه (تومان برای هر واحد)', 'Custom rate (Toman per unit)'),
+            input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="custom" value="${esc(fx.custom ? String(fx.custom) : '')}" placeholder="0">`,
+          })}
+        </div>
+        <button type="submit" class="btn btn--primary btn--small">${esc(L('ذخیره نرخ‌ها', 'Save rates'))}</button>
+      </form>
+      <p class="card__sub">${esc(L(
+        'نرخ را خودتان وارد می‌کنید. برنامه هیچ نرخی را خودش نمی‌آورد و چیزی به اینترنت نمی‌فرستد.',
+        'You enter the rate yourself. The app never fetches one and never sends anything to the internet.',
       ))}</p>
     </section>
   </div>`;
@@ -1052,8 +1095,33 @@ onAction('set-calendar', async (element) => {
 });
 
 onAction('set-currency', async (element) => {
-  await saveSettings({ currency: element.dataset.value === 'rial' ? 'rial' : 'toman' });
+  const allowed = ['toman', 'rial', 'usd', 'eur', 'custom'];
+  const next = allowed.includes(element.dataset.value) ? element.dataset.value : 'toman';
+  await saveSettings({ currency: next });
+  const fx = data.settings.fx || {};
+  if ((next === 'usd' && !fx.usd) || (next === 'eur' && !fx.eur) || (next === 'custom' && !fx.custom)) {
+    toast(L('اول نرخ این واحد را پایین‌تر وارد کنید.', 'Enter the rate for this unit below first.'), 'warn');
+  }
   rerender();
+});
+
+onForm('rates', async (form) => {
+  const read = (name) => {
+    const raw = normalizeDigits(form.elements[name].value).replace(/[,٬،\s]/g, '');
+    const value = Number(raw);
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+  };
+  await saveSettings({
+    fx: {
+      usd: read('usd'),
+      eur: read('eur'),
+      custom: read('custom'),
+      customLabel: form.elements.customLabel.value.trim(),
+    },
+    ratesUpdatedAt: new Date().toISOString(),
+  });
+  rerender();
+  toast(L('نرخ‌ها ذخیره شد', 'Rates saved'));
 });
 
 onForm('family', async (form) => {

@@ -15,7 +15,7 @@ import {
   isoToJalali, jalaliToISO, jalaaliMonthLength, monthName, todayISO, monthKeyParts,
   partsFromISO, isoFromParts, gregorianMonthLength, gregorianMonthName,
 } from './jalali.js';
-import { currencyLabel, getCalendarMode } from './prefs.js';
+import { currencyLabel, currencyDecimals, getCalendarMode } from './prefs.js';
 
 /* ---------------- icons ---------------- */
 
@@ -357,6 +357,8 @@ export function bindInputs(root = document) {
   root.querySelectorAll('input[data-amount]').forEach((input) => {
     if (input.dataset.bound === '1') return;
     input.dataset.bound = '1';
+    /* A decimal point is needed for foreign currencies; the numeric keypad has none. */
+    if (currencyDecimals() > 0) input.setAttribute('inputmode', 'decimal');
     const updatePreview = () => {
       const wrap = input.closest('.field') || input.parentElement;
       const preview = wrap ? wrap.querySelector('[data-amount-preview]') : null;
@@ -367,7 +369,13 @@ export function bindInputs(root = document) {
     };
     input.addEventListener('input', () => {
       const caretAtEnd = input.selectionStart === input.value.length;
-      input.value = normalizeDigits(input.value).replace(/[^\d]/g, '');
+      /* Foreign currencies need a decimal point; Toman and Rial do not. */
+      const decimals = currencyDecimals();
+      let cleaned = normalizeDigits(input.value);
+      cleaned = decimals > 0
+        ? cleaned.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+        : cleaned.replace(/[^\d]/g, '');
+      input.value = cleaned;
       if (!caretAtEnd) return;
       updatePreview();
     });

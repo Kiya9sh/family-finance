@@ -17,10 +17,22 @@ import {
   isoToJalali, monthKeyParts, monthName, weekdayName, relativeIso, pad2, partsFromISO,
   isoFromParts, monthKeyStartISO, monthKeyEndISO, gregorianMonthName,
 } from './jalali.js';
-import { isGregorian, currencyMultiplier, currencyLabel } from './prefs.js';
+import {
+  isGregorian, currencyMultiplier, currencyLabel, currencyDecimals,
+} from './prefs.js';
 
 const FA_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-const GROUPER = new Intl.NumberFormat('en-US');
+const FORMATTERS = new Map();
+
+function grouper(decimals) {
+  if (!FORMATTERS.has(decimals)) {
+    FORMATTERS.set(decimals, new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }));
+  }
+  return FORMATTERS.get(decimals);
+}
 
 export function uid(prefix = 'id') {
   const rand = Math.random().toString(36).slice(2, 8);
@@ -46,13 +58,13 @@ export function faDigits(input) {
 }
 
 /* Money as digits in the display currency: 1250000 Toman -> "۱٬۲۵۰٬۰۰۰",
- * or in Rial mode "۱۲٬۵۰۰٬۰۰۰". */
+ * in Rial mode "۱۲٬۵۰۰٬۰۰۰", in USD mode "۱۲.۵۰" at the saved rate. */
 export function formatNumber(value) {
   const n = (Number(value) || 0) * currencyMultiplier();
   const negative = n < 0;
-  const grouped = GROUPER.format(Math.round(Math.abs(n)));
+  const grouped = grouper(currencyDecimals()).format(Math.abs(n));
   if (getLang() === 'en') return (negative ? '-' : '') + grouped;
-  return (negative ? '-' : '') + toPersianDigits(grouped).replace(/,/g, '٬');
+  return (negative ? '-' : '') + toPersianDigits(grouped).replace(/,/g, '٬').replace(/\./g, '٫');
 }
 
 export function formatMoney(value) {
@@ -65,24 +77,28 @@ export function formatSignedMoney(value) {
   return `${sign}${formatNumber(Math.abs(n))}`;
 }
 
-/* Value shown inside an amount <input>: plain ASCII with simple commas. */
+/* Value shown inside an amount <input>: plain ASCII, with the same number of
+ * decimals the display currency uses. */
 export function formatAmountForInput(value) {
   const n = (Number(value) || 0) * currencyMultiplier();
   if (!Number.isFinite(n) || n === 0) return '';
-  return GROUPER.format(Math.round(n));
+  return grouper(currencyDecimals()).format(n);
 }
 
-/* Accepts "1,250,000", "۱۲۵۰۰۰۰", " 1250000 " and returns the amount in Toman.
- * In Rial mode the typed number is divided back by 10. */
+/* Accepts "1,250,000", "۱۲۵۰۰۰۰", "12.50" and returns the amount in Toman.
+ * Rial divides by 10; a foreign unit divides by its rate, then rounds to whole
+ * Toman because Toman is the only thing stored. */
 export function parseAmount(input) {
   if (input === null || input === undefined) return NaN;
   let s = normalizeDigits(input);
-  s = s.replace(/[,٬،\s\u00A0]/g, '').replace(/^\+/, '');
+  s = s.replace(/[,٬،\s\u00A0]/g, '').replace(/^\+/, '').replace(/٫/g, '.');
   if (!s) return NaN;
   if (!/^-?\d+(\.\d+)?$/.test(s)) return NaN;
   const value = Number(s);
   if (!Number.isFinite(value)) return NaN;
-  return Math.round(value / currencyMultiplier());
+  const toman = value / currencyMultiplier();
+  if (!Number.isFinite(toman)) return NaN;
+  return Math.round(toman);
 }
 
 export function escapeHtml(value) {

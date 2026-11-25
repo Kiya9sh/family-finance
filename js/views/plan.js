@@ -10,6 +10,7 @@ import {
   recordLoanPayment, loanRemaining, loanPaidTotal, loanMonthlyPayment, loanSchedule,
   loanNextDueDate, upcomingLoanPayments, monthlyLoanPaymentTotal, averageMonthlyExpense,
   expectedForMonth, affordability, lendingTotals, monthSummary, profileName,
+  portfolioSummary, assetsSorted, assetValueToman, assetCostToman, assetPriceToman, ASSET_KINDS,
 } from '../state.js';
 import {
   todayISO, currentMonthKey, addMonthsToKey, addMonthsToISO,
@@ -35,6 +36,7 @@ export function renderPlan() {
     { value: 'expected', label: L('درآمد انتظاری', 'Expected') },
     { value: 'loans', label: L('وام‌ها', 'Loans') },
     { value: 'lending', label: L('قرض', 'Lending') },
+    { value: 'assets', label: L('دارایی‌ها', 'Assets') },
   ];
   return `<div class="view">
     <div class="view-head">
@@ -44,6 +46,7 @@ export function renderPlan() {
     ${tab === 'expected' ? expectedTab() : ''}
     ${tab === 'loans' ? loansTab() : ''}
     ${tab === 'lending' ? lendingTab() : ''}
+    ${tab === 'assets' ? assetsTab() : ''}
   </div>`;
 }
 
@@ -960,3 +963,399 @@ onAction('settle-lending', async (element) => {
   rerender();
   toast(L('تسویه شد', 'Settled'));
 });
+
+
+
+/* ---------------- assets / investments ---------------- */
+
+const ASSET_PRESETS = [
+  {
+    key: 'usd', kind: 'currency', fa: 'دلار آمریکا', en: 'US dollar',
+    unitFa: 'دلار', unitEn: 'USD', priceCurrency: 'toman',
+  },
+  {
+    key: 'eur', kind: 'currency', fa: 'یورو', en: 'Euro',
+    unitFa: 'یورو', unitEn: 'EUR', priceCurrency: 'toman',
+  },
+  {
+    key: 'gold-gram', kind: 'gold', fa: 'طلای ۱۸ عیار (گرم)', en: 'Gold 18k (gram)',
+    unitFa: 'گرم', unitEn: 'g', priceCurrency: 'toman',
+  },
+  {
+    key: 'coin', kind: 'gold', fa: 'سکه', en: 'Gold coin',
+    unitFa: 'سکه', unitEn: 'coin', priceCurrency: 'toman',
+  },
+  {
+    key: 'silver-gram', kind: 'silver', fa: 'نقره (گرم)', en: 'Silver (gram)',
+    unitFa: 'گرم', unitEn: 'g', priceCurrency: 'toman',
+  },
+  {
+    key: 'stock', kind: 'stock', fa: 'سهام یا صندوق', en: 'Shares or fund',
+    unitFa: 'واحد', unitEn: 'unit', priceCurrency: 'toman',
+  },
+  {
+    key: 'btc', kind: 'crypto', fa: 'بیت‌کوین', en: 'Bitcoin',
+    unitFa: 'واحد', unitEn: 'unit', priceCurrency: 'usd',
+  },
+  {
+    key: 'eth', kind: 'crypto', fa: 'اتریوم', en: 'Ethereum',
+    unitFa: 'واحد', unitEn: 'unit', priceCurrency: 'usd',
+  },
+  {
+    key: 'usdt', kind: 'crypto', fa: 'تتر', en: 'Tether',
+    unitFa: 'واحد', unitEn: 'unit', priceCurrency: 'usd',
+  },
+];
+
+const KIND_LABELS = {
+  currency: () => L('ارز', 'Currency'),
+  gold: () => L('طلا', 'Gold'),
+  silver: () => L('نقره', 'Silver'),
+  crypto: () => L('رمزارز', 'Crypto'),
+  stock: () => L('سهام', 'Shares'),
+  other: () => L('سایر', 'Other'),
+};
+
+const ASSET_CURRENCY_CODES = ['toman', 'rial', 'usd', 'eur', 'custom'];
+
+function codeLabel(code) {
+  switch (code) {
+    case 'rial': return L('ریال', 'Rial');
+    case 'usd': return L('دلار', 'USD');
+    case 'eur': return L('یورو', 'EUR');
+    case 'custom':
+      return (data.settings.fx && data.settings.fx.customLabel) || L('واحد دلخواه', 'Custom');
+    default: return L('تومان', 'Toman');
+  }
+}
+
+function plainNumber(input) {
+  const cleaned = normalizeDigits(input).replace(/[,٬،\s]/g, '');
+  if (!cleaned) return NaN;
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return NaN;
+  const value = Number(cleaned);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+function quantityText(value) {
+  const n = Number(value) || 0;
+  const rounded = Math.round(n * 10000) / 10000;
+  return faDigits(String(rounded));
+}
+
+function assetsTab() {
+  const summary = portfolioSummary();
+  const list = assetsSorted();
+  const rates = data.settings.fx || {};
+  const missingRate = ['usd', 'eur', 'custom'].some(
+    (code) => !rates[code] && list.some((asset) => (asset.priceCurrency || 'toman') === code),
+  );
+  const presets = ASSET_PRESETS.map(
+    (preset) => `<button type="button" class="chip" data-action="new-asset" data-preset="${esc(preset.key)}">${esc(L(preset.fa, preset.en))}</button>`,
+  ).join('');
+
+  return `<section class="card">
+      <div class="stat-grid stat-grid--two">
+        ${statTile({
+          label: L('ارزش دارایی‌ها', 'Portfolio value'),
+          value: formatMoney(summary.value),
+          tone: 'income',
+          hint: esc(`${faDigits(summary.count)} ${L('دارایی', 'holdings')}`),
+        })}
+        ${statTile({
+          label: L('سود یا زیان', 'Gain / loss'),
+          value: formatMoney(summary.gain),
+          tone: summary.gain >= 0 ? 'income' : 'expense',
+          hint: summary.cost
+            ? `${faDigits(summary.gainPct)}${L('٪ نسبت به بهای خرید', '% vs cost')}`
+            : esc(L('بهای خرید ثبت نشده', 'No cost recorded')),
+        })}
+      </div>
+      <div class="row row--gap row--wrap">
+        <button type="button" class="btn btn--primary btn--small" data-action="new-asset" data-preset="usd">
+          ${icon('plus', 16)}<span>${esc(L('دارایی جدید', 'New holding'))}</span>
+        </button>
+        ${list.length
+          ? `<button type="button" class="btn btn--ghost btn--small" data-action="update-assets-prices">${esc(L('به‌روزرسانی قیمت‌ها', 'Update prices'))}</button>`
+          : ''}
+      </div>
+      <p class="card__sub">${esc(L(
+        'ارزش هر دارایی = مقدار × قیمت روز. قیمت‌ها را خودتان وارد می‌کنید؛ برنامه هیچ قیمتی را از اینترنت نمی‌گیرد.',
+        'Value = quantity × price. You enter the prices; the app does not fetch any price from the internet.',
+      ))}</p>
+    </section>
+
+    <section class="card">
+      ${sectionTitle(L('افزودن دارایی', 'Add a holding'))}
+      <div class="chip-row chip-row--scroll">
+        ${presets}
+      </div>
+    </section>
+
+    ${list.length
+      ? `<section class="card">
+          ${sectionTitle(L('دارایی‌ها', 'Holdings'))}
+          <ul class="plain-list">
+            ${list.map((asset) => assetRowHTML(asset)).join('')}
+          </ul>
+        </section>`
+      : emptyState({
+          iconName: 'chart',
+          title: L('دارایی ثبت نشده', 'No holdings yet'),
+          text: esc(L(
+            'ارز، طلا، نقره، سهام یا رمزارز اضافه کنید تا ارزش کل و سود یا زیان را ببینید.',
+            'Add currency, gold, silver, shares or crypto to see the total value and gain or loss.',
+          )),
+          action: `<button type="button" class="btn btn--primary" data-action="new-asset" data-preset="usd">${esc(L('افزودن دارایی', 'Add a holding'))}</button>`,
+        })}
+
+    ${missingRate
+      ? note(esc(L(
+        'برای ارزش‌گذاری دلاری، یورویی یا واحد دلخواه، اول نرخ ارز را در «بیشتر → تقویم و واحد پول» وارد کنید.',
+        'To value dollar, Euro or custom-unit holdings, enter the exchange rate first in More → Calendar & currency.',
+      )), 'warn')
+      : ''}
+
+    ${note(esc(L(
+      'قیمت‌ها را خودتان وارد می‌کنید و ممکن است با بازار فرق کنند؛ این عدد برای پیگیری است، نه قیمت معاملاتی.',
+      'Prices are the ones you enter and may differ from the market; they are for tracking, not for trading.',
+    )))}`;
+}
+
+function assetRowHTML(asset) {
+  const value = assetValueToman(asset);
+  const cost = assetCostToman(asset);
+  const gain = cost ? value - cost : 0;
+  const kindLabel = KIND_LABELS[asset.kind] ? KIND_LABELS[asset.kind]() : asset.kind;
+  const unit = L(asset.unitFa || 'واحد', asset.unitEn || 'unit');
+  const price = assetPriceToman(asset);
+  return `<li class="plain-list__item">
+    <div class="plain-list__main">
+      <span class="plain-list__title">${esc(asset.name)}
+        <span class="tag">${esc(kindLabel)}</span>
+        ${asset.demo ? `<span class="tag">${esc(L('نمونه', 'Sample'))}</span>` : ''}
+      </span>
+      <span class="plain-list__meta">${esc(`${quantityText(asset.quantity)} ${unit}`)} ·
+        ${esc(price > 0 ? `${L('قیمت هر واحد', 'price each')}: ${formatMoney(price)}` : L('قیمت ثبت نشده', 'no price'))}</span>
+      ${cost ? `<span class="plain-list__meta">${L('سود یا زیان', 'Gain / loss')}: ${formatMoney(gain)}</span>` : ''}
+    </div>
+    <div class="plain-list__side">
+      <span class="plain-list__amount">${formatMoney(value)}</span>
+      <div class="row row--gap">
+        <button type="button" class="icon-btn" data-action="edit-asset" data-id="${esc(asset.id)}"
+          aria-label="${esc(L('ویرایش', 'Edit'))}">${icon('pencil', 18)}</button>
+        <button type="button" class="icon-btn" data-action="delete-asset" data-id="${esc(asset.id)}"
+          aria-label="${esc(L('حذف', 'Delete'))}">${icon('trash', 18)}</button>
+      </div>
+    </div>
+  </li>`;
+}
+
+function openAssetSheet(existing = null, presetKey = '') {
+  const preset = ASSET_PRESETS.find((item) => item.key === presetKey) || null;
+  const asset = existing || (preset
+    ? {
+      kind: preset.kind,
+      name: L(preset.fa, preset.en),
+      quantity: '',
+      unitFa: preset.unitFa,
+      unitEn: preset.unitEn,
+      priceCurrency: preset.priceCurrency,
+      pricePerUnit: '',
+      buyPricePerUnit: '',
+    }
+    : {
+      kind: 'other',
+      name: '',
+      quantity: '',
+      unitFa: 'واحد',
+      unitEn: 'unit',
+      priceCurrency: 'toman',
+      pricePerUnit: '',
+      buyPricePerUnit: '',
+    });
+
+  const people = profilesSorted();
+  const kindOptions = ASSET_KINDS.map((kind) => ({ value: kind, label: KIND_LABELS[kind]() }));
+  const currencyOptions = ASSET_CURRENCY_CODES.map((code) => ({ value: code, label: codeLabel(code) }));
+  const formId = `asset-form-${Math.random().toString(36).slice(2, 7)}`;
+  const unit = existing ? L(asset.unitFa || 'واحد', asset.unitEn || 'unit') : L(asset.unitFa, asset.unitEn);
+
+  const body = `<form id="${formId}">
+    ${field({
+      label: L('نوع دارایی', 'Kind'),
+      input: selectInput({ name: 'kind', options: kindOptions, value: asset.kind }),
+    })}
+    ${field({
+      label: L('نام', 'Name'),
+      required: true,
+      input: `<input class="input" name="name" maxlength="50" autocomplete="off" value="${esc(asset.name)}"
+        placeholder="${esc(L('مثلاً طلای ۱۸ عیار', 'e.g. gold 18k'))}">`,
+    })}
+    <div class="form-grid">
+      ${field({
+        label: L('مقدار', 'Quantity'),
+        input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="quantity"
+          value="${esc(asset.quantity === '' ? '' : String(asset.quantity))}" placeholder="0">`,
+        hint: esc(L('اعشار هم می‌شود: ۰٫۵ گرم یا ۰٫۰۰۳ بیت‌کوین', 'Decimals are fine: 0.5 g or 0.003 BTC')),
+      })}
+      ${field({
+        label: L('واحد شمارش', 'Unit'),
+        input: `<input class="input" name="unit" maxlength="16" autocomplete="off" value="${esc(unit)}">`,
+      })}
+    </div>
+    <div class="form-grid">
+      ${field({
+        label: L('قیمت هر واحد', 'Price per unit'),
+        input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="pricePerUnit"
+          value="${esc(asset.pricePerUnit === '' ? '' : String(asset.pricePerUnit))}" placeholder="0">`,
+      })}
+      ${field({
+        label: L('واحد قیمت', 'Price in'),
+        input: selectInput({ name: 'priceCurrency', options: currencyOptions, value: asset.priceCurrency || 'toman' }),
+      })}
+    </div>
+    ${field({
+      label: L('قیمت خرید هر واحد (اختیاری)', 'Buy price per unit (optional)'),
+      input: `<input class="input" type="text" inputmode="decimal" autocomplete="off" name="buyPricePerUnit"
+        value="${esc(asset.buyPricePerUnit ? String(asset.buyPricePerUnit) : '')}" placeholder="0">`,
+      hint: esc(L('برای دیدن سود یا زیان', 'Used to show gain or loss')),
+    })}
+    ${people.length
+      ? field({
+        label: L('مالک', 'Owner'),
+        input: selectInput({
+          name: 'profileId',
+          options: [{ value: '', label: L('مشترک خانواده', 'Shared') }].concat(
+            people.map((person) => ({ value: person.id, label: person.name })),
+          ),
+          value: asset.profileId || '',
+        }),
+      })
+      : ''}
+    ${field({
+      label: L('یادداشت', 'Note'),
+      input: `<textarea class="input input--area" name="notes" rows="2">${esc(asset.notes || '')}</textarea>`,
+    })}
+    <p class="form-error" data-form-error role="alert"></p>
+  </form>`;
+
+  const sheet = openSheet({
+    title: existing ? L('ویرایش دارایی', 'Edit holding') : L('دارایی جدید', 'New holding'),
+    subtitle: L('ارزش با قیمتی که وارد می‌کنید حساب می‌شود.', 'Value uses the price you enter.'),
+    body,
+    footer: `<button type="submit" form="${formId}" class="btn btn--primary btn--grow">${esc(L('ذخیره', 'Save'))}</button>`,
+  });
+
+  const form = sheet.el.querySelector('form');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const errorBox = form.querySelector('[data-form-error]');
+    const name = form.elements.name.value.trim();
+    const quantity = plainNumber(form.elements.quantity.value);
+    const price = plainNumber(form.elements.pricePerUnit.value);
+    const buyPrice = plainNumber(form.elements.buyPricePerUnit.value);
+    if (!name) {
+      if (errorBox) errorBox.textContent = L('نام دارایی را بنویسید.', 'Type a name.');
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      if (errorBox) errorBox.textContent = L('مقدار را وارد کنید.', 'Enter a quantity.');
+      return;
+    }
+    const unitValue = form.elements.unit.value.trim() || L('واحد', 'unit');
+    const record = {
+      ...(existing || {}),
+      kind: form.elements.kind.value,
+      name,
+      quantity,
+      unitFa: unitValue,
+      unitEn: unitValue,
+      priceCurrency: form.elements.priceCurrency.value,
+      pricePerUnit: Number.isFinite(price) && price > 0 ? price : 0,
+      buyCurrency: form.elements.priceCurrency.value,
+      buyPricePerUnit: Number.isFinite(buyPrice) && buyPrice > 0 ? buyPrice : 0,
+      profileId: form.elements.profileId ? form.elements.profileId.value || null : null,
+      notes: form.elements.notes.value.trim(),
+    };
+    if (!existing) delete record.id;
+    await upsert('assets', record);
+    sheet.close();
+    rerender();
+    toast(L('ذخیره شد', 'Saved'));
+  });
+}
+
+function openAssetsPricesSheet() {
+  const list = assetsSorted();
+  if (!list.length) {
+    toast(L('اول یک دارایی اضافه کنید.', 'Add a holding first.'), 'warn');
+    return;
+  }
+  const formId = `asset-prices-${Math.random().toString(36).slice(2, 7)}`;
+  const body = `<form id="${formId}">
+    <p class="card__sub">${esc(L(
+      'قیمت امروز هر واحد را وارد کنید. خالی گذاشتن یعنی بدون تغییر.',
+      'Enter today’s price per unit. Leave a field empty to keep the old price.',
+    ))}</p>
+    ${list.map((asset, index) => field({
+      label: `${asset.name} (${L('فعلی', 'now')}: ${formatNumber(asset.pricePerUnit || 0)} ${codeLabel(asset.priceCurrency || 'toman')})`,
+      input: `<input class="input" type="text" inputmode="decimal" autocomplete="off"
+        name="price${index}" value="" placeholder="${esc(String(asset.pricePerUnit || 0))}">`,
+    })).join('')}
+    <p class="form-error" data-form-error role="alert"></p>
+  </form>`;
+  const sheet = openSheet({
+    title: L('به‌روزرسانی قیمت‌ها', 'Update prices'),
+    body,
+    footer: `<button type="submit" form="${formId}" class="btn btn--primary btn--grow">${esc(L('ذخیره قیمت‌ها', 'Save prices'))}</button>`,
+  });
+  const form = sheet.el.querySelector('form');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    let changed = 0;
+    for (let index = 0; index < list.length; index += 1) {
+      const raw = form.elements[`price${index}`].value;
+      if (!raw.trim()) continue;
+      const value = plainNumber(raw);
+      if (!Number.isFinite(value) || value < 0) continue;
+      await upsert('assets', { ...list[index], pricePerUnit: value });
+      changed += 1;
+    }
+    sheet.close();
+    rerender();
+    toast(
+      changed
+        ? L(`${faDigits(changed)} قیمت به‌روز شد`, `${changed} price(s) updated`)
+        : L('قیمتی تغییر نکرد', 'No price changed'),
+      changed ? 'ok' : 'warn',
+    );
+  });
+}
+
+onAction('new-asset', (element) => {
+  const presetKey = element.dataset.preset || '';
+  openAssetSheet(null, presetKey);
+});
+
+onAction('edit-asset', (element) => {
+  const asset = (data.assets || []).find((item) => item.id === element.dataset.id);
+  if (asset) openAssetSheet(asset);
+});
+
+onAction('delete-asset', async (element) => {
+  const asset = (data.assets || []).find((item) => item.id === element.dataset.id);
+  if (!asset) return;
+  const ok = await confirmDialog({
+    title: L('حذف دارایی', 'Delete holding'),
+    message: esc(L(`«${asset.name}» حذف شود؟`, `Delete “${asset.name}”?`)),
+    confirmText: L('حذف', 'Delete'),
+    danger: true,
+  });
+  if (!ok) return;
+  await removeRecord('assets', asset.id);
+  rerender();
+  toast(L('حذف شد', 'Deleted'));
+});
+
+onAction('update-assets-prices', () => openAssetsPricesSheet());

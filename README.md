@@ -176,3 +176,31 @@ If the app ever shows a blank page or the «برنامه بارگذاری نشد
    files and the service worker, then reloads. **Your records are not touched.**
 3. Removing the Home Screen icon removes that icon's storage, so back up first
    if you are going to do that.
+
+
+---
+
+## Version 2.1 — more currencies and investments
+
+Added on top of version 2:
+
+- **USD, Euro and a custom unit** — More → *Calendar & currency* now offers
+  Toman, Rial, USD, Euro or a unit you name. Amounts are still stored in Toman;
+  every other unit divides by a rate **you** enter, and what you type is
+  multiplied back before it is stored. The app never fetches a rate and never
+  sends anything online. If the chosen unit has no rate saved yet, amounts stay
+  in Toman and are labelled Toman, and the screen says so.
+- **Investments** — Planning → *داراییها / Assets*: currencies, gold (gram and
+  coin), silver, shares and crypto (BTC, ETH, USDT, or your own name), each with
+  quantity, unit, price per unit and an optional buy price, so the tab shows
+  portfolio value and gain or loss. Prices are the ones you type; *Update
+  prices* opens every holding at once so you can refresh them in one pass. No
+  price is ever fetched from the internet.
+- **Assets travel with backups and family sharing** — the JSON backup, the
+  Markdown report source data and the family exchange file all include holdings.
+- Database version 3 adds the `assets` store; the cache is
+  `family-finance-r4`. The database opener still accepts a phone whose database
+  is older or newer, so an existing install keeps working.
+
+Amount inputs now accept a decimal point (and switch the iPhone keypad to the
+decimal one) when the display unit is USD, Euro or custom.
