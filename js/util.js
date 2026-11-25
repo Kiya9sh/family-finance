@@ -2,14 +2,9 @@
  * Shared helpers: digits, money formatting, date formatting, DOM-safe text,
  * and the files used for export and backup.
  *
- * Money is always stored as whole Toman. If the user picks Rial as the display
- * currency, formatNumber multiplies by 10 on the way out and parseAmount
- * divides by 10 on the way in — a conversion that is announced on screen,
- * never silent.
- *
- * Dates are always stored as ISO Gregorian strings. If the user picks the
- * Gregorian calendar, the display helpers below print Gregorian dates instead
- * of Jalali ones; the stored value never changes.
+ * Currency values are formatted and parsed as entered. Currency selection only
+ * changes the unit label and decimal precision; it never converts amounts.
+ * Dates are stored as ISO Gregorian strings regardless of display calendar.
  */
 
 import { L, getLang } from './i18n.js';
@@ -18,7 +13,7 @@ import {
   isoFromParts, monthKeyStartISO, monthKeyEndISO, gregorianMonthName,
 } from './jalali.js';
 import {
-  isGregorian, currencyMultiplier, currencyLabel, currencyDecimals,
+  isGregorian, currencyLabel, currencyDecimals,
 } from './prefs.js';
 
 const FA_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
@@ -57,38 +52,34 @@ export function faDigits(input) {
   return getLang() === 'en' ? s : toPersianDigits(s);
 }
 
-/* Money as digits in the display currency: 1250000 Toman -> "۱٬۲۵۰٬۰۰۰",
- * in Rial mode "۱۲٬۵۰۰٬۰۰۰", in USD mode "۱۲.۵۰" at the saved rate. */
-export function formatNumber(value) {
-  const n = (Number(value) || 0) * currencyMultiplier();
+/* Money is shown exactly in the selected unit, without conversion. */
+export function formatNumber(value, code) {
+  const n = Number(value) || 0;
   const negative = n < 0;
-  const grouped = grouper(currencyDecimals()).format(Math.abs(n));
+  const grouped = grouper(currencyDecimals(code)).format(Math.abs(n));
   if (getLang() === 'en') return (negative ? '-' : '') + grouped;
   return (negative ? '-' : '') + toPersianDigits(grouped).replace(/,/g, '٬').replace(/\./g, '٫');
 }
 
-export function formatMoney(value) {
-  return `${formatNumber(value)} ${currencyLabel()}`;
+export function formatMoney(value, code) {
+  return `${formatNumber(value, code)} ${currencyLabel(code)}`;
 }
 
-export function formatSignedMoney(value) {
+export function formatSignedMoney(value, code) {
   const n = Number(value) || 0;
   const sign = n > 0 ? '+' : n < 0 ? '-' : '';
-  return `${sign}${formatNumber(Math.abs(n))}`;
+  return `${sign}${formatNumber(Math.abs(n), code)}`;
 }
 
-/* Value shown inside an amount <input>: plain ASCII, with the same number of
- * decimals the display currency uses. */
-export function formatAmountForInput(value) {
-  const n = (Number(value) || 0) * currencyMultiplier();
+/* Value shown inside an amount input, using the selected unit's precision. */
+export function formatAmountForInput(value, code) {
+  const n = Number(value) || 0;
   if (!Number.isFinite(n) || n === 0) return '';
-  return grouper(currencyDecimals()).format(n);
+  return grouper(currencyDecimals(code)).format(n);
 }
 
-/* Accepts "1,250,000", "۱۲۵۰۰۰۰", "12.50" and returns the amount in Toman.
- * Rial divides by 10; a foreign unit divides by its rate, then rounds to whole
- * Toman because Toman is the only thing stored. */
-export function parseAmount(input) {
+/* Accepts grouped Persian/Arabic or ASCII digits and keeps the entered value. */
+export function parseAmount(input, code) {
   if (input === null || input === undefined) return NaN;
   let s = normalizeDigits(input);
   s = s.replace(/[,٬،\s\u00A0]/g, '').replace(/^\+/, '').replace(/٫/g, '.');
@@ -96,9 +87,7 @@ export function parseAmount(input) {
   if (!/^-?\d+(\.\d+)?$/.test(s)) return NaN;
   const value = Number(s);
   if (!Number.isFinite(value)) return NaN;
-  const toman = value / currencyMultiplier();
-  if (!Number.isFinite(toman)) return NaN;
-  return Math.round(toman);
+  return currencyDecimals(code) ? Math.round(value * 100) / 100 : Math.round(value);
 }
 
 export function escapeHtml(value) {

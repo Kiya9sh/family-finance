@@ -10,7 +10,7 @@ import {
   recordLoanPayment, loanRemaining, loanPaidTotal, loanMonthlyPayment, loanSchedule,
   loanNextDueDate, upcomingLoanPayments, monthlyLoanPaymentTotal, averageMonthlyExpense,
   expectedForMonth, affordability, lendingTotals, monthSummary, profileName,
-  portfolioSummary, assetsSorted, assetValueToman, assetCostToman, assetPriceToman, ASSET_KINDS,
+  portfolioSummary, assetsSorted, assetValueInCurrency, assetCostInCurrency, assetPriceInCurrency, ASSET_KINDS,
 } from '../state.js';
 import {
   todayISO, currentMonthKey, addMonthsToKey, addMonthsToISO,
@@ -1024,7 +1024,7 @@ function codeLabel(code) {
     case 'usd': return L('دلار', 'USD');
     case 'eur': return L('یورو', 'EUR');
     case 'custom':
-      return (data.settings.fx && data.settings.fx.customLabel) || L('واحد دلخواه', 'Custom');
+      return data.settings.customCurrencyLabel || L('واحد دلخواه', 'Custom');
     default: return L('تومان', 'Toman');
   }
 }
@@ -1046,31 +1046,30 @@ function quantityText(value) {
 function assetsTab() {
   const summary = portfolioSummary();
   const list = assetsSorted();
-  const rates = data.settings.fx || {};
-  const missingRate = ['usd', 'eur', 'custom'].some(
-    (code) => !rates[code] && list.some((asset) => (asset.priceCurrency || 'toman') === code),
-  );
   const presets = ASSET_PRESETS.map(
     (preset) => `<button type="button" class="chip" data-action="new-asset" data-preset="${esc(preset.key)}">${esc(L(preset.fa, preset.en))}</button>`,
   ).join('');
+  const currencySummaries = summary.byCurrency.map((row) => `<section class="card">
+    ${sectionTitle(codeLabel(row.code))}
+    <div class="stat-grid stat-grid--two">
+      ${statTile({
+        label: L('ارزش دارایی‌ها', 'Portfolio value'),
+        value: formatMoney(row.value, row.code),
+        tone: 'income',
+        hint: esc(`${faDigits(row.count)} ${L('دارایی', 'holdings')}`),
+      })}
+      ${statTile({
+        label: L('سود یا زیان', 'Gain / loss'),
+        value: row.gainCount ? formatMoney(row.gain, row.code) : '—',
+        tone: row.gain >= 0 ? 'income' : 'expense',
+        hint: row.gainCount
+          ? `${faDigits(row.gainCount)} ${L('دارایی با بهای خرید قابل مقایسه', 'holdings with comparable buy prices')} · ${faDigits(row.gainPct)}${L('٪ نسبت به بهای خرید', '% vs cost')}`
+          : esc(L('بهای خرید قابل مقایسه ثبت نشده', 'No comparable purchase price')),
+      })}
+    </div>
+  </section>`).join('');
 
   return `<section class="card">
-      <div class="stat-grid stat-grid--two">
-        ${statTile({
-          label: L('ارزش دارایی‌ها', 'Portfolio value'),
-          value: formatMoney(summary.value),
-          tone: 'income',
-          hint: esc(`${faDigits(summary.count)} ${L('دارایی', 'holdings')}`),
-        })}
-        ${statTile({
-          label: L('سود یا زیان', 'Gain / loss'),
-          value: formatMoney(summary.gain),
-          tone: summary.gain >= 0 ? 'income' : 'expense',
-          hint: summary.cost
-            ? `${faDigits(summary.gainPct)}${L('٪ نسبت به بهای خرید', '% vs cost')}`
-            : esc(L('بهای خرید ثبت نشده', 'No cost recorded')),
-        })}
-      </div>
       <div class="row row--gap row--wrap">
         <button type="button" class="btn btn--primary btn--small" data-action="new-asset" data-preset="usd">
           ${icon('plus', 16)}<span>${esc(L('دارایی جدید', 'New holding'))}</span>
@@ -1080,10 +1079,12 @@ function assetsTab() {
           : ''}
       </div>
       <p class="card__sub">${esc(L(
-        'ارزش هر دارایی = مقدار × قیمت روز. قیمت‌ها را خودتان وارد می‌کنید؛ برنامه هیچ قیمتی را از اینترنت نمی‌گیرد.',
-        'Value = quantity × price. You enter the prices; the app does not fetch any price from the internet.',
+        'ارزش هر دارایی = مقدار × قیمت روز. جمع‌ها جداگانه برای هر ارز نمایش داده می‌شوند؛ تبدیل ارز انجام نمی‌شود.',
+        'Value = quantity × current price. Totals are shown separately for each currency; no currency conversion is performed.',
       ))}</p>
     </section>
+
+    ${currencySummaries}
 
     <section class="card">
       ${sectionTitle(L('افزودن دارایی', 'Add a holding'))}
@@ -1103,18 +1104,11 @@ function assetsTab() {
           iconName: 'chart',
           title: L('دارایی ثبت نشده', 'No holdings yet'),
           text: esc(L(
-            'ارز، طلا، نقره، سهام یا رمزارز اضافه کنید تا ارزش کل و سود یا زیان را ببینید.',
-            'Add currency, gold, silver, shares or crypto to see the total value and gain or loss.',
+            'ارز، طلا، نقره، سهام یا رمزارز اضافه کنید تا ارزش و سود یا زیان هر واحد پول را جدا ببینید.',
+            'Add currency, gold, silver, shares or crypto to see value and gain/loss separately for each currency.',
           )),
           action: `<button type="button" class="btn btn--primary" data-action="new-asset" data-preset="usd">${esc(L('افزودن دارایی', 'Add a holding'))}</button>`,
         })}
-
-    ${missingRate
-      ? note(esc(L(
-        'برای ارزش‌گذاری دلاری، یورویی یا واحد دلخواه، اول نرخ ارز را در «بیشتر → تقویم و واحد پول» وارد کنید.',
-        'To value dollar, Euro or custom-unit holdings, enter the exchange rate first in More → Calendar & currency.',
-      )), 'warn')
-      : ''}
 
     ${note(esc(L(
       'قیمت‌ها را خودتان وارد می‌کنید و ممکن است با بازار فرق کنند؛ این عدد برای پیگیری است، نه قیمت معاملاتی.',
@@ -1123,12 +1117,13 @@ function assetsTab() {
 }
 
 function assetRowHTML(asset) {
-  const value = assetValueToman(asset);
-  const cost = assetCostToman(asset);
+  const code = asset.priceCurrency || 'toman';
+  const value = assetValueInCurrency(asset);
+  const cost = assetCostInCurrency(asset);
   const gain = cost ? value - cost : 0;
   const kindLabel = KIND_LABELS[asset.kind] ? KIND_LABELS[asset.kind]() : asset.kind;
   const unit = L(asset.unitFa || 'واحد', asset.unitEn || 'unit');
-  const price = assetPriceToman(asset);
+  const price = assetPriceInCurrency(asset);
   return `<li class="plain-list__item">
     <div class="plain-list__main">
       <span class="plain-list__title">${esc(asset.name)}
@@ -1136,11 +1131,11 @@ function assetRowHTML(asset) {
         ${asset.demo ? `<span class="tag">${esc(L('نمونه', 'Sample'))}</span>` : ''}
       </span>
       <span class="plain-list__meta">${esc(`${quantityText(asset.quantity)} ${unit}`)} ·
-        ${esc(price > 0 ? `${L('قیمت هر واحد', 'price each')}: ${formatMoney(price)}` : L('قیمت ثبت نشده', 'no price'))}</span>
-      ${cost ? `<span class="plain-list__meta">${L('سود یا زیان', 'Gain / loss')}: ${formatMoney(gain)}</span>` : ''}
+        ${esc(price > 0 ? `${L('قیمت هر واحد', 'price each')}: ${formatMoney(price, code)}` : L('قیمت ثبت نشده', 'no price'))}</span>
+      ${cost ? `<span class="plain-list__meta">${L('سود یا زیان', 'Gain / loss')}: ${formatMoney(gain, code)}</span>` : ''}
     </div>
     <div class="plain-list__side">
-      <span class="plain-list__amount">${formatMoney(value)}</span>
+      <span class="plain-list__amount">${formatMoney(value, code)}</span>
       <div class="row row--gap">
         <button type="button" class="icon-btn" data-action="edit-asset" data-id="${esc(asset.id)}"
           aria-label="${esc(L('ویرایش', 'Edit'))}">${icon('pencil', 18)}</button>
@@ -1299,7 +1294,7 @@ function openAssetsPricesSheet() {
       'Enter today’s price per unit. Leave a field empty to keep the old price.',
     ))}</p>
     ${list.map((asset, index) => field({
-      label: `${asset.name} (${L('فعلی', 'now')}: ${formatNumber(asset.pricePerUnit || 0)} ${codeLabel(asset.priceCurrency || 'toman')})`,
+      label: `${asset.name} (${L('فعلی', 'now')}: ${formatMoney(asset.pricePerUnit || 0, asset.priceCurrency || 'toman')})`,
       input: `<input class="input" type="text" inputmode="decimal" autocomplete="off"
         name="price${index}" value="" placeholder="${esc(String(asset.pricePerUnit || 0))}">`,
     })).join('')}

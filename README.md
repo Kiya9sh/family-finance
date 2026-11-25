@@ -1,6 +1,6 @@
 # مدیریت مالی خانواده — Family Finance
 
-A mobile-first Progressive Web App for managing personal and family money in **Iranian Toman** with the **Jalali (Hejri Shamsi)** calendar. Built as a PWA, added to the Home Screen, working offline with no backend and no account.
+A mobile-first Progressive Web App for managing personal and family finances with a selectable currency unit and the **Jalali (Hejri Shamsi)** calendar. Built as a PWA, added to the Home Screen, working offline with no backend and no account.
 
 Everything is static files: no build step, no server, no dependencies, no API keys.
 
@@ -15,7 +15,7 @@ Everything is static files: no build step, no server, no dependencies, no API ke
 | **برنامه / Planning** | Four sub-tabs: **expected income** per person/category/month, **loans** (instalments, payment history, remaining balance), **money lent & borrowed**. |
 | **محاسبه / Calculate** | Loan instalment calculator, "can we afford a new loan?" estimate, buy-now-pay-later instalments (4 to 6 months and more), bank deposit interest with four methods, and an income-tax return estimate with editable brackets. |
 | **گزارش / Report** | Choose a Jalali range, choose people and which fields to include, preview the Markdown, then share it with the iOS share sheet or save the `.md` file. |
-| **بیشتر / More** | Family profiles, categories, stores/websites, accounts, daily reminder, language (فارسی / English), sample data, backup & restore, delete everything, help & limitations. |
+| **بیشتر / More** | Family profiles, categories, stores/websites, accounts, daily reminder, currency and calendar settings, app update control, language (فارسی / English), sample data, backup & restore, delete everything, help & limitations. |
 
 Sheets (bottom cards) handle every form: add/edit expense, add/edit income, paste-from-SMS import, loan, loan payment, expected income, lending, account, category, profile, and all confirmations before deleting.
 
@@ -24,13 +24,13 @@ Sheets (bottom cards) handle every form: add/edit expense, add/edit income, past
 ## Data storage
 
 - **IndexedDB**, database `family-finance`, one object store per record type:
-  `profiles`, `categories`, `payees`, `transactions`, `expected`, `loans`, `lendings`, `accounts`, `settings`.
-- Amounts are stored as **integers in Toman**. Nothing is ever converted between Toman and Rial; the app never asks for or shows Rial.
+  `profiles`, `categories`, `payees`, `transactions`, `expected`, `loans`, `lendings`, `accounts`, `assets`, `tombstones`, `settings`.
+- Money is stored exactly as entered in the selected household unit (Toman, Rial, USD, EUR or a custom unit). There are **no exchange rates and no currency conversions**. Changing the unit only changes the label; existing numbers are not converted. Choose one unit and keep it consistent. Legacy installs are reset to Toman on upgrade so existing Toman figures keep their meaning.
 - Dates are stored as ISO `YYYY-MM-DD` (Gregorian) so sorting is trivial, and **shown** in Jalali everywhere — month keys, grouping, reports, reminders. Monthly repeat rules advance by *Jalali* months, so a salary on 1 Mehr repeats on 1 Aban.
-- Language choice is mirrored in the settings record; the UI is unrecoverably local. No analytics, no network calls, no third-party scripts, no fonts loaded from a CDN.
-- The service worker precaches the whole shell, so the app opens offline after the first successful load.
+- Language choice is mirrored in the settings record; the UI is unrecoverably local. No analytics, no third-party scripts, and no fonts loaded from a CDN.
+- The service worker precaches the whole shell, so the app opens offline after the first successful load. Internet is used to fetch the app and check for updates; financial records stay on the phone.
 
-Nothing is sent anywhere. A record only leaves the phone if you explicitly share an export or a backup.
+Financial records are never sent anywhere. A record only leaves the phone if you explicitly share an export or a backup.
 
 ## Accounts and sensitive data
 
@@ -103,12 +103,12 @@ The app never requests notification permission and never sends a push message.
 ```
 index.html            app shell, iOS meta tags, manifest link
 manifest.webmanifest  name, icons, standalone, shortcuts
-sw.js                 precache + cache-first service worker (bump CACHE_VERSION on release)
+sw.js                 precache + network-first service worker (bump CACHE_VERSION on release)
 styles.css            one stylesheet, logical properties for RTL/LTR
 icons/icon.svg        maskable app icon
 js/jalali.js          Jalali ⇆ Gregorian maths (jalaali algorithm), month arithmetic
 js/i18n.js            language state; strings are written as L('فارسی', 'English')
-js/util.js            Toman formatting/parsing, Jalali display, file sharing
+js/util.js            currency formatting/parsing, Jalali display, file sharing
 js/db.js              IndexedDB wrapper, backup/restore primitives
 js/state.js           in-memory store + every calculation (summaries, loans, reminders)
 js/components.js      icons, sheets, fields, Jalali date picker, charts
@@ -118,7 +118,7 @@ js/views/*.js         dashboard, records, planning, reports, more, entry forms
 js/app.js             router, event delegation, onboarding, boot
 ```
 
-Conventions worth keeping: amounts are integers in Toman; dates in storage are ISO Gregorian; every string goes through `L('fa', 'en')`; every write goes through `state.upsert`/`removeRecord` so IndexedDB and memory cannot drift.
+Conventions worth keeping: amounts are kept as entered in the selected currency unit with no conversion; dates in storage are ISO Gregorian; every string goes through `L('fa', 'en')`; every write goes through `state.upsert`/`removeRecord` so IndexedDB and memory cannot drift.
 
 ## Testing checklist (iPhone Safari)
 
@@ -132,6 +132,9 @@ Conventions worth keeping: amounts are integers in Toman; dates in storage are I
 8. Report → pick a range, toggle people and fields, preview, share to Notes/Files.
 9. Backup → save to Files → delete all data → restore the file → confirm everything returns.
 10. Check Jalali dates across dashboard, records, report, and the reminder's unrecorded days.
+11. Switch currency after adding records; confirm the warning appears and saved numbers stay unchanged while labels change. Confirm USD/Euro/custom entries keep two decimal places and Toman/Rial stay whole.
+12. Add investment holdings quoted in different currencies; confirm each currency has its own value and gain/loss total, with no cross-currency sum.
+13. More → App update → Check and reload; confirm the app reloads and saved records remain.
 
 
 ---
@@ -141,11 +144,12 @@ Conventions worth keeping: amounts are integers in Toman; dates in storage are I
 Added on top of version 1:
 
 - **Calendar choice** — More → *Calendar & currency* switches every date between Jalali and Gregorian for display and entry. Dates are still stored one way (ISO Gregorian), and monthly periods (salary, instalments, monthly reports) stay on the Jalali month, because that is the payroll and billing cycle the app is built around.
-- **Currency choice** — Toman (default) or Rial. Amounts are always stored in Toman; Rial is the same money shown ×10, and what you type in Rial is divided back before it is stored. Nothing else is ever converted.
+- **Currency choice** — Toman, Rial, USD, Euro or a custom label. The selected unit is used as entered; the app never converts amounts and requires no exchange rates. Changing the selected unit only changes labels, not saved numbers.
 - **A separate Calculate tab** — loan instalments, the affordability check, buy-now-pay-later instalments, bank deposit interest and the income-tax estimate, out of Planning.
 - **Buy now, pay later** — price, down payment, 2–24 instalments (4 and 6 are one tap away), a percentage or fixed fee, the resulting schedule, the effective annual rate, and a button that saves the plan as an instalment loan in Planning.
 - **Deposit interest** — simple, yearly compounded, monthly compounded, or interest paid out monthly, with optional withholding and an effective annual yield. The method, rate, term and result are all listed.
 - **Income tax estimate** — taxable income after deductions, progressive brackets you can edit (the defaults are placeholders, not the law), tax already paid, and the balance due or refund. The screen says plainly it is an estimate.
+- **Attribution** — More → Help & limitations credits the app's coding and idea to Kianoosh Gholami.
 - **Markdown and JSON exports** — the Report tab and More → Backup both write `.md`; the JSON backup is the only format that can be restored, and the backup screen says so next to the buttons.
 - **Family sharing** — a phone-to-phone exchange file that *merges* instead of replacing: people, categories and stores are matched by name, a newer edit wins, and deletions travel as tombstones so a removed record does not come back. No server, no account. Live sync between phones would need its own secure backend and is not part of this version.
 
@@ -154,20 +158,14 @@ Added on top of version 1:
 
 ## Version history and recovery
 
-The site ships **version 2** again. Version 3 (multi-currency display,
-investment holdings, in-app update check) was rolled back because the app did
-not open on the iPhone; its code stays in the git history and can be brought
-back from there once it can be tested.
-
-Two changes were kept from the later work because they make this version start
-reliably:
+The current release is **version 2.1**. It restores multi-currency input and investment tracking without exchange-rate conversion, and includes a manual update control under More → App update.
 
 - **The database opener asks the phone which version is stored** and opens at
-  least that, adding any missing stores. A phone that once ran version 3 has a
-  version-3 database, which used to make version 2 fail to open at all.
+  least that, adding any missing stores. It keeps existing version-3 databases
+  usable while adding stores required by a release.
 - **The service worker fetches files from the network first** and keeps the
   cache only as the offline fallback, so an older cached script can never be
-  paired with a newer page. The cache is named `family-finance-r2`.
+  paired with a newer page. The cache name is bumped for each release.
 
 If the app ever shows a blank page or the «برنامه بارگذاری نشد» card:
 
@@ -184,23 +182,23 @@ If the app ever shows a blank page or the «برنامه بارگذاری نشد
 
 Added on top of version 2:
 
-- **USD, Euro and a custom unit** — More → *Calendar & currency* now offers
-  Toman, Rial, USD, Euro or a unit you name. Amounts are still stored in Toman;
-  every other unit divides by a rate **you** enter, and what you type is
-  multiplied back before it is stored. The app never fetches a rate and never
-  sends anything online. If the chosen unit has no rate saved yet, amounts stay
-  in Toman and are labelled Toman, and the screen says so.
+- **USD, Euro and a custom unit** — More → *Calendar & currency* offers Toman,
+  Rial, USD, Euro or a unit you name. It is a unit label/input choice only: the
+  entered amount is kept as-is. No exchange rate is requested or applied, and
+  changing the choice does not convert existing values. Keep one unit selected
+  consistently for the household.
 - **Investments** — Planning → *داراییها / Assets*: currencies, gold (gram and
   coin), silver, shares and crypto (BTC, ETH, USDT, or your own name), each with
-  quantity, unit, price per unit and an optional buy price, so the tab shows
-  portfolio value and gain or loss. Prices are the ones you type; *Update
-  prices* opens every holding at once so you can refresh them in one pass. No
-  price is ever fetched from the internet.
+  quantity, unit, price per unit and an optional buy price. Holdings and gains
+  are totalled separately by quoted currency; unlike currencies are never added
+  together or converted. Prices are entered manually; *Update prices* lets you
+  refresh all holdings in one pass.
 - **Assets travel with backups and family sharing** — the JSON backup, the
   Markdown report source data and the family exchange file all include holdings.
+- **App update control** — More → App update checks the service worker for a newer release and reloads the app without touching local records.
 - Database version 3 adds the `assets` store; the cache is
-  `family-finance-r4`. The database opener still accepts a phone whose database
+  `family-finance-r5`. The database opener still accepts a phone whose database
   is older or newer, so an existing install keeps working.
 
 Amount inputs now accept a decimal point (and switch the iPhone keypad to the
-decimal one) when the display unit is USD, Euro or custom.
+decimal one) when the selected unit is USD, Euro or custom.

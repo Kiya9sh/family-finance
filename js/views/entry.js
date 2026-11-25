@@ -153,7 +153,7 @@ export function openTransactionSheet({ type = 'expense', record = null, prefill 
     title: record
       ? isIncome ? L('ویرایش درآمد', 'Edit income') : L('ویرایش هزینه', 'Edit expense')
       : isIncome ? L('ثبت درآمد', 'Add income') : L('ثبت هزینه', 'Add expense'),
-    subtitle: L('مبلغ‌ها همیشه به تومان ذخیره می‌شوند.', 'Amounts are always stored in Toman.'),
+    subtitle: L('مبلغ بدون تبدیل و با واحد انتخاب‌شده ذخیره می‌شود.', 'The amount is saved as entered, in the selected unit; no conversion is made.'),
     body,
     footer,
   });

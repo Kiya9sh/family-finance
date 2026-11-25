@@ -160,8 +160,8 @@ function renderOnboarding() {
       <div class="onboarding__logo">${icon('wallet', 34)}</div>
       <h1 class="onboarding__title">${esc(L('مدیریت مالی خانواده', 'Family finance'))}</h1>
       <p class="onboarding__text">${esc(L(
-        'درآمد، هزینه، وام و پول قرضی خانواده را روی همین گوشی نگه دارید. همه مبلغ‌ها به تومان و همه تاریخ‌ها شمسی است.',
-        'Keep your household income, spending, loans and lending on this phone. Every amount is in Toman and every date is Jalali.',
+        'درآمد، هزینه، وام و پول قرضی خانواده را روی همین گوشی نگه دارید. مبلغ‌ها با واحد انتخاب‌شده و تاریخ‌ها شمسی هستند.',
+        'Keep your household income, spending, loans and lending on this phone. Amounts use your selected currency unit and dates are Jalali.',
       ))}</p>
       <div class="onboarding__field">
         <span class="field__label">${esc(L('زبان', 'Language'))}</span>

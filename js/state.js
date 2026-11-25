@@ -8,7 +8,7 @@
 
 import * as db from './db.js';
 import { L, getLang, setLang } from './i18n.js';
-import { setCalendarMode, setCurrencyMode, tomanPerUnit } from './prefs.js';
+import { setCalendarMode, setCurrencyMode } from './prefs.js';
 import {
   todayISO, currentMonthKey, monthKeyOfISO, monthKeyStartISO, monthKeyEndISO,
   addMonthsToKey, addMonthsToISO, addDaysISO, diffDaysISO, daysInMonthKey,
@@ -65,8 +65,8 @@ export const DEFAULT_SETTINGS = {
   lang: 'fa',
   calendar: 'jalali',
   currency: 'toman',
-  fx: { usd: 0, eur: 0, custom: 0, customLabel: '' },
-  ratesUpdatedAt: '',
+  customCurrencyLabel: '',
+  currencyModel: 'unit-label-only',
   onboarded: false,
   reminderEnabled: false,
   reminderTime: '21:00',
@@ -79,6 +79,24 @@ export const DEFAULT_SETTINGS = {
   schema: 2,
 };
 
+function normalizeSettings(stored = {}) {
+  const legacyFx = stored.fx || {};
+  const hasCurrentCurrencyModel = stored.currencyModel === 'unit-label-only';
+  const settings = { ...stored };
+  delete settings.fx;
+  delete settings.ratesUpdatedAt;
+  const allowedCurrencies = ['toman', 'rial', 'usd', 'eur', 'custom'];
+  const selectedCurrency = allowedCurrencies.includes(stored.currency) ? stored.currency : 'toman';
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    currency: hasCurrentCurrencyModel ? selectedCurrency : 'toman',
+    customCurrencyLabel: stored.customCurrencyLabel || legacyFx.customLabel || '',
+    currencyModel: 'unit-label-only',
+    lastUsed: { ...DEFAULT_SETTINGS.lastUsed, ...(stored.lastUsed || {}) },
+  };
+}
+
 /* ---------------- lifecycle ---------------- */
 
 export async function initState() {
@@ -89,15 +107,10 @@ export async function initState() {
   });
   const settingsRows = Array.isArray(all.settings) ? all.settings : [];
   const stored = settingsRows.find((row) => row.id === 'app') || {};
-  data.settings = {
-    ...DEFAULT_SETTINGS,
-    ...stored,
-    lastUsed: { ...DEFAULT_SETTINGS.lastUsed, ...(stored.lastUsed || {}) },
-    fx: { ...DEFAULT_SETTINGS.fx, ...(stored.fx || {}) },
-  };
+  data.settings = normalizeSettings(stored);
   setLang(data.settings.lang);
   setCalendarMode(data.settings.calendar);
-  setCurrencyMode(data.settings.currency, data.settings.fx);
+  setCurrencyMode(data.settings.currency, data.settings.customCurrencyLabel);
 
   await ensureDefaults();
   const created = await materializeRecurring();
@@ -171,10 +184,12 @@ export async function saveSettings(patch) {
   data.settings = {
     ...data.settings,
     ...patch,
-    fx: { ...(data.settings.fx || {}), ...(patch.fx || {}) },
+    currencyModel: 'unit-label-only',
   };
   if (patch.calendar) setCalendarMode(patch.calendar);
-  if (patch.currency || patch.fx) setCurrencyMode(data.settings.currency, data.settings.fx);
+  if (patch.currency || patch.customCurrencyLabel !== undefined) {
+    setCurrencyMode(data.settings.currency, data.settings.customCurrencyLabel);
+  }
   if (patch.lang) setLang(patch.lang);
   await db.put('settings', data.settings);
   return data.settings;
@@ -930,11 +945,8 @@ export async function restoreBackup(payload) {
   const settingsRows = Array.isArray(payload.data.settings) ? payload.data.settings : [];
   const storedSettings = settingsRows.find((row) => row.id === 'app') || payload.data.settings || {};
   const settingsRecord = {
-    ...DEFAULT_SETTINGS,
-    ...(settingsRows.length ? storedSettings : {}),
+    ...normalizeSettings(settingsRows.length ? storedSettings : {}),
     id: 'app',
-    lastUsed: { ...DEFAULT_SETTINGS.lastUsed, ...(storedSettings.lastUsed || {}) },
-    fx: { ...DEFAULT_SETTINGS.fx, ...(storedSettings.fx || {}) },
   };
   cleaned.settings = [settingsRecord];
 
@@ -946,7 +958,7 @@ export async function restoreBackup(payload) {
   data.settings = settingsRecord;
   setLang(data.settings.lang);
   setCalendarMode(data.settings.calendar);
-  setCurrencyMode(data.settings.currency, data.settings.fx);
+  setCurrencyMode(data.settings.currency, data.settings.customCurrencyLabel);
   await materializeRecurring();
   return true;
 }
@@ -991,49 +1003,54 @@ export function monthKeyOfDate(iso) {
 
 export const ASSET_KINDS = ['currency', 'gold', 'silver', 'crypto', 'stock', 'other'];
 
-/* Price of one unit, in Toman. The price itself may be quoted in Toman, Rial,
- * USD, EUR or the custom unit, so it is converted with the user's own rates.
- * A missing rate means the holding has no value yet, never a guessed one. */
-export function assetPriceToman(asset) {
-  const price = Number(asset.pricePerUnit) || 0;
-  const rate = tomanPerUnit(asset.priceCurrency || 'toman');
-  return rate > 0 ? price * rate : 0;
+/* Investment prices remain in their quoted currency. No cross-currency
+ * aggregation is performed without an exchange rate. */
+export function assetPriceInCurrency(asset) {
+  return Number(asset.pricePerUnit) || 0;
 }
 
-export function assetValueToman(asset) {
-  return (Number(asset.quantity) || 0) * assetPriceToman(asset);
+export function assetValueInCurrency(asset) {
+  return (Number(asset.quantity) || 0) * assetPriceInCurrency(asset);
 }
 
-export function assetCostToman(asset) {
+export function assetCostInCurrency(asset) {
   const buy = Number(asset.buyPricePerUnit) || 0;
-  if (!buy) return 0;
-  const rate = tomanPerUnit(asset.buyCurrency || asset.priceCurrency || 'toman');
-  return (Number(asset.quantity) || 0) * buy * (rate > 0 ? rate : 0);
+  const buyCurrency = asset.buyCurrency || asset.priceCurrency || 'toman';
+  const priceCurrency = asset.priceCurrency || 'toman';
+  if (!buy || buyCurrency !== priceCurrency) return 0;
+  return (Number(asset.quantity) || 0) * buy;
 }
 
 export function portfolioSummary(personIds = activeFilterIds()) {
   const list = (data.assets || []).filter(
     (asset) => !personIds || !personIds.length || personIds.includes(asset.profileId),
   );
-  const value = sum(list, assetValueToman);
-  const cost = sum(list, assetCostToman);
-  const gain = value - cost;
-  const byKind = ASSET_KINDS
-    .map((kind) => {
-      const rows = list.filter((asset) => asset.kind === kind);
-      return { kind, count: rows.length, value: sum(rows, assetValueToman) };
-    })
-    .filter((row) => row.count > 0);
-  return {
-    value,
-    cost,
-    gain,
-    gainPct: cost ? Math.round((gain / cost) * 1000) / 10 : 0,
-    count: list.length,
-    byKind,
-  };
+  const codes = [...new Set(list.map((asset) => asset.priceCurrency || 'toman'))];
+  const byCurrency = codes.map((code) => {
+    const rows = list.filter((asset) => (asset.priceCurrency || 'toman') === code);
+    const comparableRows = rows.filter((asset) =>
+      (Number(asset.buyPricePerUnit) || 0) > 0
+      && (asset.buyCurrency || asset.priceCurrency || 'toman') === code,
+    );
+    const value = sum(rows, assetValueInCurrency);
+    const cost = sum(comparableRows, assetCostInCurrency);
+    const gain = sum(comparableRows, assetValueInCurrency) - cost;
+    return {
+      code,
+      count: rows.length,
+      gainCount: comparableRows.length,
+      value,
+      cost,
+      gain,
+      gainPct: cost ? Math.round((gain / cost) * 1000) / 10 : 0,
+    };
+  });
+  return { count: list.length, byCurrency };
 }
 
 export function assetsSorted() {
-  return (data.assets || []).slice().sort((a, b) => assetValueToman(b) - assetValueToman(a));
+  return (data.assets || []).slice().sort((a, b) =>
+    (a.priceCurrency || 'toman').localeCompare(b.priceCurrency || 'toman')
+    || (a.name || '').localeCompare(b.name || ''),
+  );
 }
