@@ -36,7 +36,22 @@ function open() {
       });
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('IndexedDB unavailable'));
+    request.onerror = () => {
+      const error = request.error;
+      /* A phone that once ran a newer build has a newer database. Open it at
+       * whatever version it already is instead of failing to start. */
+      if (error && error.name === 'VersionError') {
+        try {
+          const fallback = indexedDB.open(DB_NAME);
+          fallback.onsuccess = () => resolve(fallback.result);
+          fallback.onerror = () => reject(fallback.error || error);
+        } catch (err) {
+          reject(error);
+        }
+        return;
+      }
+      reject(error || new Error('IndexedDB unavailable'));
+    };
     request.onblocked = () => reject(new Error('IndexedDB blocked by another tab'));
   });
   return dbPromise;
