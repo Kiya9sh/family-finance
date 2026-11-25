@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>بازنشانی فایل‌های برنامه — Family Finance</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px 18px;
+        font-family: -apple-system, "SF Pro Text", Tahoma, sans-serif;
+        background: #f6f7f9;
+        color: #14212b;
+        line-height: 1.7;
+      }
+      main { max-width: 520px; margin: 0 auto; }
+      h1 { font-size: 20px; margin: 0 0 8px; }
+      p { font-size: 14px; color: #475569; margin: 0 0 14px; }
+      button {
+        width: 100%;
+        padding: 14px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        background: #0f766e;
+        border: 0;
+        border-radius: 14px;
+      }
+      a { display: block; margin-top: 12px; font-size: 14px; color: #0f766e; }
+      pre {
+        margin-top: 16px;
+        padding: 12px;
+        background: #fff;
+        border-radius: 10px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        direction: ltr;
+        text-align: left;
+        color: #475569;
+        min-height: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>بازنشانی فایل‌های برنامه</h1>
+      <p>
+        اگر صفحه برنامه سفید می‌ماند، این صفحه فایل‌های ذخیره‌شده برنامه (کش و سرویس‌ورکر) را پاک می‌کند
+        و برنامه را از نو بار می‌آورد. <strong>رکوردهای شما در حافظه مرورگر دست نمی‌خورند.</strong>
+      </p>
+      <p dir="ltr" style="text-align: left">
+        If the app stays blank, this clears the cached app files and the service worker, then reloads.
+        Your records in browser storage are not deleted.
+      </p>
+      <button id="go" type="button">پاک کردن و بازگشت به برنامه</button>
+      <a href="./">بازگشت بدون پاک کردن</a>
+      <pre id="log"></pre>
+    </main>
+    <script>
+      document.getElementById('go').addEventListener('click', async function () {
+        var log = document.getElementById('log');
+        try {
+          var names = await caches.keys();
+          await Promise.all(names.map(function (name) { return caches.delete(name); }));
+          log.textContent += 'caches cleared: ' + names.length + '\n';
+        } catch (err) {
+          log.textContent += 'cache error: ' + err.message + '\n';
+        }
+        try {
+          if ('serviceWorker' in navigator) {
+            var regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+            log.textContent += 'service workers removed: ' + regs.length + '\n';
+          }
+        } catch (err) {
+          log.textContent += 'service worker error: ' + err.message + '\n';
+        }
+        log.textContent += 'reloading…';
+        setTimeout(function () { window.location.href = './'; }, 900);
+      });
+    </script>
+  </body>
+</html>
